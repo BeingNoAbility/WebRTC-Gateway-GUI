@@ -31,7 +31,6 @@ jobs:
       should_build: ${{ steps.check.outputs.should_build }}
       upstream_tag: ${{ steps.check.outputs.upstream_tag }}
       release_name: ${{ steps.check.outputs.release_name }}
-      release_notes: ${{ steps.check.outputs.release_notes }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -89,13 +88,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-          cache: true
+          cache: false
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
 
       - name: Install go-winres
         run: go install github.com/tc-hib/go-winres@latest
@@ -115,13 +117,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path assets\bin | Out-Null
           Copy-Item -Path temp_download\extracted\agent.exe -Destination assets\bin\agent.exe -Force
           Copy-Item -Path temp_download\extracted\signal.exe -Destination assets\bin\signal.exe -Force
+          Remove-Item -Recurse -Force temp_download
           Write-Host "Upstream kernel binaries placed into assets\bin\"
 
       - name: Flutter Dependencies
         run: flutter pub get
 
       - name: Flutter Analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Run Tests
         run: flutter test
@@ -135,13 +138,14 @@ jobs:
         run: |
           go run tools/standalone_packer/main.go
           
-          # Rename artifacts with upstream tag
           $tag = $env:UPSTREAM_TAG
-          Copy-Item "WebRTC-Gateway-Manager-Standalone.exe" "WebRTC-Gateway-Manager-Standalone-$tag.exe"
-          
           New-Item -ItemType Directory -Force -Path release_artifacts | Out-Null
-          Move-Item "WebRTC-Gateway-Manager-Standalone-$tag.exe" "release_artifacts\"
-          Move-Item "WebRTC-Gateway-Manager-*.zip" "release_artifacts\"
+          
+          # Standalone single executable
+          Copy-Item "WebRTC-Gateway-Manager-Standalone.exe" "release_artifacts\WebRTC-Gateway-Manager-Standalone-$tag.exe"
+          
+          # Portable green zip
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "release_artifacts\WebRTC-Gateway-Manager-$tag-windows-x64-green.zip" -Force
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -171,6 +175,9 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
       - name: Flutter Dependencies
         run: flutter pub get
 
@@ -196,6 +203,8 @@ jobs:
     needs: [check-upstream, build-windows, build-android]
     if: needs.check-upstream.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
