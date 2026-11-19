@@ -1,6 +1,17 @@
-# WebRTC Gateway Manager (GUI)
+<p align="center">
+  <img src="assets/images/logo.svg" width="96" height="96" alt="WebRTC Gateway Logo" />
+</p>
 
-> 基于 Flutter 的现代跨平台图形用户界面（GUI），统一覆盖 **Windows 桌面端** 与 **Android 移动端**，专为 [WebRTC-Gateway](https://github.com/BeingNoAbility/WebRTC-Gateway) 内网穿透网关打造。
+<h1 align="center">WebRTC Gateway Manager (GUI)</h1>
+
+<p align="center">
+  <a href="https://github.com/BeingNoAbility/WebRTC-Gateway-GUI/actions/workflows/auto_release.yml"><img src="https://github.com/BeingNoAbility/WebRTC-Gateway-GUI/actions/workflows/auto_release.yml/badge.svg" alt="Build Status"></a>
+  <a href="https://github.com/BeingNoAbility/WebRTC-Gateway-GUI/releases"><img src="https://img.shields.io/github/v/release/BeingNoAbility/WebRTC-Gateway-GUI?color=blue&label=release" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android-cyan.svg" alt="Platform">
+</p>
+
+> 基于 Flutter 3 与 Material 3 的跨平台现代化图形用户界面客户端，统一覆盖 **Windows 桌面端** 与 **Android 移动端**，专为 [WebRTC-Gateway](https://github.com/BeingNoAbility/WebRTC-Gateway) 内网穿透网关打造。
 
 ---
 
@@ -16,7 +27,7 @@
   - 托盘右键菜单支持：显示主面板、一键拉起/停止全部 Agent 穿透集群、彻底退出程序。
   - 可以在「配置设置」中随时开启或关闭“最小化到托盘”功能。
 
-### 1. 多 Agent 集群并发管理 (Multi-Agent Cluster Hub)
+### 2. 多 Agent 集群并发管理 (Multi-Agent Cluster Hub)
 - **多实例同时运行**：完全支持在同一台机器上并发启动、停止和管理多个独立的 WebRTC Agent 实例。
 - **动态端口防冲突分配**：每个 Agent 自动分配独立的 Prometheus Metrics 端口（如 `:9091`, `:9092`, `:9093` 等），彻底杜绝端口冲突。
 - **集群全局 HUD 仪表盘**：顶栏实时聚合展示整个集群的总活跃对等连接数（Peers）、全集群实时下行/上行总吞吐速率以及累计数据量。
@@ -30,32 +41,32 @@
   - 📄 **单文件极速分发**：零端口监听直连分发大文件（ISO、视频、安装包）。
 - **安全分享弹窗**：内置纯数学 HMAC-SHA256 时效签名算法，生成 1小时 / 24小时 / 7天 / 30天限时直连链接并生成二维码，支持一键复制与系统浏览器直达。
 
-2. **🌐 访客连接中心 (Visitor Hub)**
-   - 快速连接栏：支持直接粘贴分享链接（自动解析 URL Hash 片段与签名参数）或手动输入 Node ID + 门户地址。
-   - **常用节点收藏夹 (Bookmarks)**：保存常用 NAS、办公室 PC、开发机等节点，显示最后访问时间，一键打开。
+### 3. 🌐 访客连接中心 (Visitor Hub)
+- 快速连接栏：支持直接粘贴分享链接（自动解析 URL Hash 片段与签名参数）或手动输入 Node ID + 门户地址。
+- **常用节点收藏夹 (Bookmarks)**：保存常用 NAS、办公室 PC、开发机等节点，显示最后访问时间，一键打开。
 
-3. **📡 信令服务端管理 (Signal Server Host)**
-   - 本地信令服务一键开关（默认 `:8888` 端口）。
-   - Anti-CSWSH 跨域白名单策略配置、允许全部跨域开关。
-   - 一键生成内存自签 HTTPS 证书（`-tls-auto`），为局域网激活 Service Worker Secure Context 安全上下文。
-   - 实时监控在线注册 Agent 节点数与连接数。
+### 4. 📡 信令服务端管理 (Signal Server Host)
+- 本地信令服务一键开关（默认 `:8888` 端口）。
+- Anti-CSWSH 跨域白名单策略配置、允许全部跨域开关。
+- 一键生成内存自签 HTTPS 证书（`-tls-auto`），为局域网激活 Service Worker Secure Context 安全上下文。
+- 实时监控在线注册 Agent 节点数与连接数。
 
-4. **⚡ 网络与穿透诊断工具箱 (Diagnostics Toolkit)**
-   - **一键全景网络穿透体检**：
-     - 本地目标 Web 服务端口连通性与 HTTP 探活。
-     - 信令服务器 WebSocket 端口可用性探测。
-     - 国际标准 RFC 5389 UDP 探测包，实时测试 Google STUN / Cloudflare STUN 往返延迟（RTT）。
-   - 单点 STUN/TURN 自定义测试工具。
+### 5. ⚡ 网络与穿透诊断工具箱 (Diagnostics Toolkit)
+- **一键全景网络穿透体检**：
+  - 本地目标 Web 服务端口连通性与 HTTP 探活。
+  - 信令服务器 WebSocket 端口可用性探测。
+  - 国际标准 RFC 5389 UDP 探测包，实时测试 Google STUN / Cloudflare STUN 往返延迟（RTT）。
+- 单点 STUN/TURN 自定义测试工具。
 
-5. **📜 实时运行日志 (Interactive Terminal Logs)**
-   - 赛博黑客风格终端控制台，支持自动滚动锁定与切换。
-   - 按级别筛选（全部、信息、警告、错误、成功）与关键字即时搜索。
-   - 一键清空与复制完整日志。
+### 6. 📜 实时运行日志 (Interactive Terminal Logs)
+- 赛博黑客风格终端控制台，支持自动滚动锁定与切换。
+- 按级别筛选（全部、信息、警告、错误、成功）与关键字即时搜索。
+- 一键清空与复制完整日志。
 
-6. **⚙️ 系统与高级设置 (Settings & Profiles)**
-   - 主题外观切换（暗黑 / 明亮 / 跟随系统）。
-   - Windows 自定义 Go 核心二进制路径覆盖（`agent.exe` / `signal.exe`）。
-   - **官方 YAML 配置文件双向互通**：查看、复制导出 `agent.yaml`，或导入外部 YAML 规则。
+### 7. ⚙️ 系统与高级设置 (Settings & Profiles)
+- 主题外观切换（暗黑 / 明亮 / 跟随系统）。
+- Windows 自定义 Go 核心二进制路径覆盖（`agent.exe` / `signal.exe`）。
+- **官方 YAML 配置文件双向互通**：查看、复制导出 `agent.yaml`，或导入外部 YAML 规则。
 
 ---
 
