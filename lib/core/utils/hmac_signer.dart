@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 
 class HmacSigner {
@@ -23,7 +24,9 @@ class HmacSigner {
     required String accessSecret,
     required Duration duration,
   }) {
-    final base = portalUrl.endsWith('/') ? portalUrl.substring(0, portalUrl.length - 1) : portalUrl;
+    final base = portalUrl.endsWith('/')
+        ? portalUrl.substring(0, portalUrl.length - 1)
+        : portalUrl;
     if (accessSecret.trim().isEmpty) {
       return '$base/#$nodeId';
     }
@@ -54,7 +57,8 @@ class HmacSigner {
         sign = queryParams['sign'];
       }
 
-      var portalUrl = '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}${uri.path}';
+      var portalUrl =
+          '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}${uri.path}';
       if (portalUrl.endsWith('/')) {
         portalUrl = portalUrl.substring(0, portalUrl.length - 1);
       }
@@ -64,7 +68,9 @@ class HmacSigner {
         'nodeId': nodeId,
         'exp': exp,
         'sign': sign,
-        'isExpired': exp != null && (DateTime.now().millisecondsSinceEpoch ~/ 1000) > exp,
+        'isExpired':
+            exp != null &&
+            (DateTime.now().millisecondsSinceEpoch ~/ 1000) > exp,
       };
     } catch (_) {
       return null;

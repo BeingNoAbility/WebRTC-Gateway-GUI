@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/models/log_entry.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/signal_provider.dart';
@@ -42,7 +43,10 @@ class _LogsScreenState extends State<LogsScreen> {
         children: [
           Row(
             children: [
-              const Text('日志源筛选: ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const Text(
+                '日志源筛选: ',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: DropdownButton<String>(
@@ -51,16 +55,25 @@ class _LogsScreenState extends State<LogsScreen> {
                   items: [
                     DropdownMenuItem(
                       value: 'all',
-                      child: Text('全部集群与信令日志 (${agentProvider.allAgentLogs.length + signalProvider.logs.length})', overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        '全部集群与信令日志 (${agentProvider.allAgentLogs.length + signalProvider.logs.length})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     DropdownMenuItem(
                       value: 'signal',
-                      child: Text('Signal 信令服务端日志 (${signalProvider.logs.length})', overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        'Signal 信令服务端日志 (${signalProvider.logs.length})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     ...agentProvider.agents.map((agent) {
                       return DropdownMenuItem(
                         value: agent.id,
-                        child: Text('Agent: ${agent.name} (#${agent.config.nodeId}) [${agent.logs.length}]', overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          'Agent: ${agent.name} (#${agent.config.nodeId}) [${agent.logs.length}]',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     }),
                   ],
@@ -84,7 +97,9 @@ class _LogsScreenState extends State<LogsScreen> {
                   agentProvider.clearLogs();
                   signalProvider.clearLogs();
                 } else {
-                  final agent = agentProvider.agents.firstWhere((a) => a.id == _selectedSource);
+                  final agent = agentProvider.agents.firstWhere(
+                    (a) => a.id == _selectedSource,
+                  );
                   agent.clearLogs();
                 }
               },

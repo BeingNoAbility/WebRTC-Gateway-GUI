@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
 import '../constants/app_colors.dart';
 
 class AppTheme {
@@ -46,7 +47,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF0F172A),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.darkCardBorder),
@@ -57,10 +61,19 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryCyan, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppColors.primaryCyan,
+            width: 1.5,
+          ),
         ),
-        hintStyle: const TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
-        labelStyle: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 13),
+        hintStyle: const TextStyle(
+          color: AppColors.darkTextMuted,
+          fontSize: 13,
+        ),
+        labelStyle: const TextStyle(
+          color: AppColors.darkTextSecondary,
+          fontSize: 13,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -68,7 +81,9 @@ class AppTheme {
           foregroundColor: Colors.black,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       ),
@@ -77,7 +92,9 @@ class AppTheme {
           foregroundColor: AppColors.darkTextPrimary,
           side: const BorderSide(color: AppColors.darkCardBorder),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       ),
       navigationRailTheme: const NavigationRailThemeData(
@@ -101,7 +118,11 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(color: AppColors.primaryCyan, fontSize: 12, fontWeight: FontWeight.w600);
+            return const TextStyle(
+              color: AppColors.primaryCyan,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            );
           }
           return const TextStyle(color: AppColors.darkTextMuted, fontSize: 12);
         }),
@@ -158,7 +179,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFFF1F5F9),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.lightCardBorder),
@@ -169,10 +193,19 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryCyanDark, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppColors.primaryCyanDark,
+            width: 1.5,
+          ),
         ),
-        hintStyle: const TextStyle(color: AppColors.lightTextMuted, fontSize: 13),
-        labelStyle: const TextStyle(color: AppColors.lightTextSecondary, fontSize: 13),
+        hintStyle: const TextStyle(
+          color: AppColors.lightTextMuted,
+          fontSize: 13,
+        ),
+        labelStyle: const TextStyle(
+          color: AppColors.lightTextSecondary,
+          fontSize: 13,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -180,7 +213,9 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       ),
@@ -189,7 +224,9 @@ class AppTheme {
           foregroundColor: AppColors.lightTextPrimary,
           side: const BorderSide(color: AppColors.lightCardBorder),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       ),
       navigationRailTheme: const NavigationRailThemeData(
@@ -213,7 +250,11 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(color: AppColors.primaryCyanDark, fontSize: 12, fontWeight: FontWeight.w600);
+            return const TextStyle(
+              color: AppColors.primaryCyanDark,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            );
           }
           return const TextStyle(color: AppColors.lightTextMuted, fontSize: 12);
         }),

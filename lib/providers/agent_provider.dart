@@ -1,5 +1,6 @@
-﻿import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+
 import '../core/models/agent_config.dart';
 import '../core/models/agent_instance.dart';
 import '../core/models/agent_metrics.dart';
@@ -54,17 +55,25 @@ class AgentProvider extends ChangeNotifier {
   int get runningAgents => _agents.where((a) => a.isRunning).length;
   bool get hasRunningAgents => runningAgents > 0;
 
-  int get totalActivePeers =>
-      _agents.fold(0, (sum, a) => sum + (a.isRunning ? a.metrics.activePeers : 0));
+  int get totalActivePeers => _agents.fold(
+    0,
+    (sum, a) => sum + (a.isRunning ? a.metrics.activePeers : 0),
+  );
 
-  double get totalRxSpeed =>
-      _agents.fold(0.0, (sum, a) => sum + (a.isRunning ? a.metrics.rxSpeedBytesPerSec : 0.0));
+  double get totalRxSpeed => _agents.fold(
+    0.0,
+    (sum, a) => sum + (a.isRunning ? a.metrics.rxSpeedBytesPerSec : 0.0),
+  );
 
-  double get totalTxSpeed =>
-      _agents.fold(0.0, (sum, a) => sum + (a.isRunning ? a.metrics.txSpeedBytesPerSec : 0.0));
+  double get totalTxSpeed => _agents.fold(
+    0.0,
+    (sum, a) => sum + (a.isRunning ? a.metrics.txSpeedBytesPerSec : 0.0),
+  );
 
-  int get totalRxBytes => _agents.fold(0, (sum, a) => sum + a.metrics.rxBytesTotal);
-  int get totalTxBytes => _agents.fold(0, (sum, a) => sum + a.metrics.txBytesTotal);
+  int get totalRxBytes =>
+      _agents.fold(0, (sum, a) => sum + a.metrics.rxBytesTotal);
+  int get totalTxBytes =>
+      _agents.fold(0, (sum, a) => sum + a.metrics.txBytesTotal);
 
   // Backward compatibility getters for active/focused agent
   AgentConfig get config => focusedAgent.config;
@@ -117,7 +126,9 @@ class AgentProvider extends ChangeNotifier {
     bool autoStart = false,
   }) {
     // If metricsAddr conflicts, assign unique address
-    final assignedConfig = config.copyWith(metricsAddr: allocateNextMetricsAddr());
+    final assignedConfig = config.copyWith(
+      metricsAddr: allocateNextMetricsAddr(),
+    );
 
     final instance = AgentInstance(
       id: 'agent-${DateTime.now().millisecondsSinceEpoch}',

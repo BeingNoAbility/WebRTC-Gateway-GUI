@@ -1,7 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+
 import '../core/models/signal_config.dart';
 import '../core/models/log_entry.dart';
 import '../core/utils/process_runner.dart';
@@ -39,7 +41,8 @@ class SignalService extends ChangeNotifier {
   String? _customBinaryPath;
 
   SignalStatus get status => _status;
-  bool get isRunning => _status == SignalStatus.running || _status == SignalStatus.starting;
+  bool get isRunning =>
+      _status == SignalStatus.running || _status == SignalStatus.starting;
   String? get errorMessage => _errorMessage;
   int get registeredNodes => _registeredNodes;
   List<LogEntry> get logs => List.unmodifiable(_logs);
@@ -50,12 +53,12 @@ class SignalService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addLog(String message, {LogLevel level = LogLevel.info, LogSource source = LogSource.signal}) {
-    _logs.add(LogEntry(
-      level: level,
-      source: source,
-      message: message,
-    ));
+  void addLog(
+    String message, {
+    LogLevel level = LogLevel.info,
+    LogSource source = LogSource.signal,
+  }) {
+    _logs.add(LogEntry(level: level, source: source, message: message));
     if (_logs.length > 1000) {
       _logs.removeRange(0, 100);
     }
@@ -74,20 +77,35 @@ class SignalService extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    addLog('准备启动 WebRTC Gateway 信令服务端 (${config.addr})...', level: LogLevel.info, source: LogSource.system);
+    addLog(
+      '准备启动 WebRTC Gateway 信令服务端 (${config.addr})...',
+      level: LogLevel.info,
+      source: LogSource.system,
+    );
 
     if (Platform.isWindows) {
-      final binary = ProcessRunner.findBinary('signal', customPath: _customBinaryPath);
+      final binary = ProcessRunner.findBinary(
+        'signal',
+        customPath: _customBinaryPath,
+      );
       if (binary == null) {
         _status = SignalStatus.error;
         _errorMessage = '未找到 signal.exe 二进制文件，请确认放置于 assets/bin 或设置自定义路径';
-        addLog('错误: $_errorMessage', level: LogLevel.error, source: LogSource.system);
+        addLog(
+          '错误: $_errorMessage',
+          level: LogLevel.error,
+          source: LogSource.system,
+        );
         notifyListeners();
         return false;
       }
 
       final args = config.toCliArgs();
-      addLog('执行命令: $binary ${args.join(" ")}', level: LogLevel.debug, source: LogSource.system);
+      addLog(
+        '执行命令: $binary ${args.join(" ")}',
+        level: LogLevel.debug,
+        source: LogSource.system,
+      );
 
       try {
         _process = await ProcessRunner.start(
@@ -107,7 +125,11 @@ class SignalService extends ChangeNotifier {
         await Future.delayed(const Duration(milliseconds: 600));
         if (_status == SignalStatus.starting) {
           _status = SignalStatus.running;
-          addLog('Signal 服务已成功创建 (PID: ${_process!.pid})', level: LogLevel.success, source: LogSource.system);
+          addLog(
+            'Signal 服务已成功创建 (PID: ${_process!.pid})',
+            level: LogLevel.success,
+            source: LogSource.system,
+          );
           notifyListeners();
         }
 
@@ -123,7 +145,11 @@ class SignalService extends ChangeNotifier {
     } else {
       await Future.delayed(const Duration(milliseconds: 500));
       _status = SignalStatus.running;
-      addLog('Android 环境：信令服务端控制已启动', level: LogLevel.success, source: LogSource.system);
+      addLog(
+        'Android 环境：信令服务端控制已启动',
+        level: LogLevel.success,
+        source: LogSource.system,
+      );
       notifyListeners();
       return true;
     }
@@ -140,14 +166,19 @@ class SignalService extends ChangeNotifier {
     if (lower.contains('fatal') || lower.contains('address already in use')) {
       _status = SignalStatus.error;
       _errorMessage = line;
-    } else if (lower.contains('webrtc gateway signaling server') || lower.contains('listening on')) {
+    } else if (lower.contains('webrtc gateway signaling server') ||
+        lower.contains('listening on')) {
       _status = SignalStatus.running;
     }
     notifyListeners();
   }
 
   void _handleProcessExit(int code) {
-    addLog('Signal 进程退出 (退出码: $code)', level: code == 0 ? LogLevel.info : LogLevel.warning, source: LogSource.system);
+    addLog(
+      'Signal 进程退出 (退出码: $code)',
+      level: code == 0 ? LogLevel.info : LogLevel.warning,
+      source: LogSource.system,
+    );
     _metricsTimer?.cancel();
     _status = SignalStatus.stopped;
     _process = null;
@@ -169,7 +200,9 @@ class SignalService extends ChangeNotifier {
         return;
       }
       try {
-        final resp = await http.get(url).timeout(const Duration(milliseconds: 800));
+        final resp = await http
+            .get(url)
+            .timeout(const Duration(milliseconds: 800));
         if (resp.statusCode == 200) {
           final lines = resp.body.split('\n');
           for (final raw in lines) {

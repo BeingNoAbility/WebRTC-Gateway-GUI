@@ -1,4 +1,5 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
+
 import '../core/models/signal_config.dart';
 import '../core/models/log_entry.dart';
 import '../services/signal_service.dart';

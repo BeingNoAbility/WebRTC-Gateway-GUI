@@ -1,4 +1,4 @@
-﻿import '../constants/app_constants.dart';
+import '../constants/app_constants.dart';
 
 enum AgentMode {
   reverseProxy,
@@ -69,8 +69,8 @@ class AgentConfig {
     this.metricsAddr = AppConstants.defaultMetricsAddr,
     this.portalUrl = AppConstants.defaultPortalUrl,
     List<String>? allowedProxyDomains,
-  })  : stunServers = stunServers ?? List.from(AppConstants.defaultStunServers),
-        allowedProxyDomains = allowedProxyDomains ?? [];
+  }) : stunServers = stunServers ?? List.from(AppConstants.defaultStunServers),
+       allowedProxyDomains = allowedProxyDomains ?? [];
 
   AgentConfig copyWith({
     String? nodeId,
@@ -112,7 +112,8 @@ class AgentConfig {
       maxStreams: maxStreams ?? this.maxStreams,
       metricsAddr: metricsAddr ?? this.metricsAddr,
       portalUrl: portalUrl ?? this.portalUrl,
-      allowedProxyDomains: allowedProxyDomains ?? List.from(this.allowedProxyDomains),
+      allowedProxyDomains:
+          allowedProxyDomains ?? List.from(this.allowedProxyDomains),
     );
   }
 
@@ -166,25 +167,28 @@ class AgentConfig {
       proxy: json['proxy'] as String? ?? '',
       sni: json['sni'] as String? ?? '',
       insecure: json['insecure'] as bool? ?? false,
-      stunServers: (json['stun_servers'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
+      stunServers:
+          (json['stun_servers'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
           List.from(AppConstants.defaultStunServers),
       turnUrl: json['turn_url'] as String? ?? '',
       turnUser: json['turn_user'] as String? ?? '',
       turnPass: json['turn_pass'] as String? ?? '',
       maxStreams: json['max_streams'] as int? ?? 512,
-      metricsAddr: json['metrics_addr'] as String? ?? AppConstants.defaultMetricsAddr,
+      metricsAddr:
+          json['metrics_addr'] as String? ?? AppConstants.defaultMetricsAddr,
       portalUrl: json['portal_url'] as String? ?? AppConstants.defaultPortalUrl,
-      allowedProxyDomains: (json['allowed_proxy_domains'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      allowedProxyDomains:
+          (json['allowed_proxy_domains'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
   List<String> toCliArgs() {
-    final args = <String>[
-      '-node-id',
-      nodeId.trim(),
-      '-signal',
-      signal.trim(),
-    ];
+    final args = <String>['-node-id', nodeId.trim(), '-signal', signal.trim()];
 
     switch (mode) {
       case AgentMode.reverseProxy:
@@ -252,8 +256,12 @@ class AgentConfig {
     buffer.writeln('# WebRTC Gateway Agent Configuration');
     buffer.writeln('node_id: "$nodeId"');
     buffer.writeln('signal: "$signal"');
-    if (signalSecret.isNotEmpty) buffer.writeln('signal_secret: "$signalSecret"');
-    if (accessSecret.isNotEmpty) buffer.writeln('access_secret: "$accessSecret"');
+    if (signalSecret.isNotEmpty) {
+      buffer.writeln('signal_secret: "$signalSecret"');
+    }
+    if (accessSecret.isNotEmpty) {
+      buffer.writeln('access_secret: "$accessSecret"');
+    }
 
     switch (mode) {
       case AgentMode.reverseProxy:

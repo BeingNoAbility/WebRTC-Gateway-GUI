@@ -1,8 +1,10 @@
-﻿class AppConstants {
+class AppConstants {
   static const String appName = 'WebRTC Gateway';
   static const String appVersion = 'v2.3.2';
-  static const String githubRepo = 'https://github.com/BeingNoAbility/WebRTC-Gateway';
-  static const String docsUrl = 'https://beingnoability.github.io/WebRTC-Gateway/';
+  static const String githubRepo =
+      'https://github.com/BeingNoAbility/WebRTC-Gateway';
+  static const String docsUrl =
+      'https://beingnoability.github.io/WebRTC-Gateway/';
 
   // Default signaling server
   static const String defaultSignalUrl = 'ws://127.0.0.1:8888/ws';

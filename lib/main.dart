@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/agent_provider.dart';
@@ -24,21 +25,13 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => SettingsProvider(storageService),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => AgentProvider(storageService),
-        ),
+        ChangeNotifierProvider(create: (_) => SettingsProvider(storageService)),
+        ChangeNotifierProvider(create: (_) => AgentProvider(storageService)),
         ChangeNotifierProvider(
           create: (_) => SignalProvider(signalService, storageService),
         ),
-        ChangeNotifierProvider(
-          create: (_) => VisitorProvider(storageService),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => DiagnosticsProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => VisitorProvider(storageService)),
+        ChangeNotifierProvider(create: (_) => DiagnosticsProvider()),
       ],
       child: const WebRTCGatewayApp(),
     ),

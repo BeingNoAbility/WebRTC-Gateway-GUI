@@ -1,11 +1,13 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/legacy.dart';
+
 import '../providers/agent_provider.dart';
 import '../providers/settings_provider.dart';
 

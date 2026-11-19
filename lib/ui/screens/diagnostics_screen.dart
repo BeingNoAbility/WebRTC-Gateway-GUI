@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/network_tester.dart';
 import '../../providers/agent_provider.dart';
@@ -13,7 +14,9 @@ class DiagnosticsScreen extends StatefulWidget {
 }
 
 class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
-  final _customStunCtrl = TextEditingController(text: 'stun:stun.l.google.com:19302');
+  final _customStunCtrl = TextEditingController(
+    text: 'stun:stun.l.google.com:19302',
+  );
   DiagnosticResult? _customStunResult;
   bool _isTestingCustomStun = false;
 
@@ -57,7 +60,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                           color: AppColors.primaryCyan.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.speed_rounded, color: AppColors.primaryCyan, size: 24),
+                        child: const Icon(
+                          Icons.speed_rounded,
+                          color: AppColors.primaryCyan,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -66,14 +73,19 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                           children: [
                             const Text(
                               '网络与 P2P 穿透诊断工具箱 (Diagnostics Toolkit)',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               '实时检测 STUN/TURN 连通性、NAT 打洞延迟与本地 Web 服务端口可用性',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                color: isDark
+                                    ? AppColors.darkTextMuted
+                                    : AppColors.lightTextMuted,
                               ),
                             ),
                           ],
@@ -86,15 +98,24 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryCyan,
                       foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                     ),
                     icon: diag.isTesting
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
                           )
-                        : const Icon(Icons.play_circle_filled_rounded, size: 18),
+                        : const Icon(
+                            Icons.play_circle_filled_rounded,
+                            size: 18,
+                          ),
                     label: Text(diag.isTesting ? '正在体检...' : '开始全景体检'),
                     onPressed: diag.isTesting
                         ? null
@@ -139,7 +160,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     children: [
                       const Text(
                         '单个 STUN/TURN 服务器 RFC 5389 连通测试',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       LayoutBuilder(
@@ -150,19 +174,34 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                             decoration: const InputDecoration(
                               labelText: 'STUN 服务器地址',
                               hintText: '如: stun:stun.l.google.com:19302',
-                              prefixIcon: Icon(Icons.podcasts_rounded, size: 18),
+                              prefixIcon: Icon(
+                                Icons.podcasts_rounded,
+                                size: 18,
+                              ),
                             ),
                           );
                           final btn = ElevatedButton.icon(
                             icon: _isTestingCustomStun
-                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Icon(Icons.network_check_rounded, size: 18),
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.network_check_rounded,
+                                    size: 18,
+                                  ),
                             label: const Text('单点测速'),
                             onPressed: _isTestingCustomStun
                                 ? null
                                 : () async {
                                     setState(() => _isTestingCustomStun = true);
-                                    final res = await NetworkTester.testStun(_customStunCtrl.text.trim());
+                                    final res = await NetworkTester.testStun(
+                                      _customStunCtrl.text.trim(),
+                                    );
                                     setState(() {
                                       _customStunResult = res;
                                       _isTestingCustomStun = false;
@@ -201,15 +240,21 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: _customStunResult!.success
-                                  ? AppColors.successGreen.withValues(alpha: 0.3)
+                                  ? AppColors.successGreen.withValues(
+                                      alpha: 0.3,
+                                    )
                                   : AppColors.errorRed.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                _customStunResult!.success ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                                color: _customStunResult!.success ? AppColors.successGreen : AppColors.errorRed,
+                                _customStunResult!.success
+                                    ? Icons.check_circle_rounded
+                                    : Icons.cancel_rounded,
+                                color: _customStunResult!.success
+                                    ? AppColors.successGreen
+                                    : AppColors.errorRed,
                                 size: 20,
                               ),
                               const SizedBox(width: 10),
@@ -218,7 +263,9 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                                   '${_customStunResult!.title} · ${_customStunResult!.details}',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: _customStunResult!.success ? AppColors.successGreen : AppColors.errorRed,
+                                    color: _customStunResult!.success
+                                        ? AppColors.successGreen
+                                        : AppColors.errorRed,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -240,7 +287,9 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                 ),
               ),
               const SizedBox(height: 10),
@@ -252,7 +301,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     child: Center(
                       child: Column(
                         children: [
-                          Icon(Icons.network_ping_rounded, size: 40, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+                          Icon(
+                            Icons.network_ping_rounded,
+                            size: 40,
+                            color: isDark
+                                ? AppColors.darkTextMuted
+                                : AppColors.lightTextMuted,
+                          ),
                           const SizedBox(height: 10),
                           const Text('尚未执行体检，点击右上角“开始全景体检”以测试网络'),
                         ],
@@ -265,25 +320,39 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: diag.results.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, idx) {
                     final item = diag.results[idx];
                     final latencyColor = _getLatencyColor(item.latencyMs);
 
                     return Card(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: item.success ? AppColors.successGreen.withValues(alpha: 0.12) : AppColors.errorRed.withValues(alpha: 0.12),
+                                color: item.success
+                                    ? AppColors.successGreen.withValues(
+                                        alpha: 0.12,
+                                      )
+                                    : AppColors.errorRed.withValues(
+                                        alpha: 0.12,
+                                      ),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                item.success ? Icons.check_rounded : Icons.close_rounded,
-                                color: item.success ? AppColors.successGreen : AppColors.errorRed,
+                                item.success
+                                    ? Icons.check_rounded
+                                    : Icons.close_rounded,
+                                color: item.success
+                                    ? AppColors.successGreen
+                                    : AppColors.errorRed,
                                 size: 18,
                               ),
                             ),
@@ -294,14 +363,19 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                                 children: [
                                   Text(
                                     item.title,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     item.details,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                      color: isDark
+                                          ? AppColors.darkTextMuted
+                                          : AppColors.lightTextMuted,
                                     ),
                                   ),
                                 ],
@@ -309,11 +383,16 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                             ),
                             if (item.success)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: latencyColor.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: latencyColor.withValues(alpha: 0.3)),
+                                  border: Border.all(
+                                    color: latencyColor.withValues(alpha: 0.3),
+                                  ),
                                 ),
                                 child: Text(
                                   '${item.latencyMs} ms',

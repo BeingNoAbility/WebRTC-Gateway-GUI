@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/hmac_signer.dart';
 
@@ -71,7 +72,11 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
                       color: AppColors.primaryCyan.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.qr_code_2_rounded, color: AppColors.primaryCyan, size: 22),
+                    child: const Icon(
+                      Icons.qr_code_2_rounded,
+                      color: AppColors.primaryCyan,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -83,7 +88,9 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.lightTextPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -91,7 +98,9 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
                           '节点: ${widget.nodeId}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                            color: isDark
+                                ? AppColors.darkTextMuted
+                                : AppColors.lightTextMuted,
                           ),
                         ),
                       ],
@@ -114,7 +123,9 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -123,12 +134,18 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
                         initialValue: _selectedDuration,
                         isDense: true,
                         decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                         ),
                         items: _durationOptions.map((opt) {
                           return DropdownMenuItem<Duration>(
                             value: opt['duration'] as Duration,
-                            child: Text(opt['label'] as String, style: const TextStyle(fontSize: 12)),
+                            child: Text(
+                              opt['label'] as String,
+                              style: const TextStyle(fontSize: 12),
+                            ),
                           );
                         }).toList(),
                         onChanged: (newDur) {
@@ -175,12 +192,19 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
 
               // Link box
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                  color: isDark
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isDark ? AppColors.darkCardBorder : AppColors.lightCardBorder,
+                    color: isDark
+                        ? AppColors.darkCardBorder
+                        : AppColors.lightCardBorder,
                   ),
                 ),
                 child: SelectableText(
@@ -216,7 +240,10 @@ class _ShareLinkDialogState extends State<ShareLinkDialog> {
                       label: const Text('浏览器打开'),
                       onPressed: () async {
                         final uri = Uri.parse(_generatedLink);
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
                       },
                     ),
                   ),

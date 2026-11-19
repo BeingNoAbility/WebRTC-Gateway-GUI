@@ -1,4 +1,4 @@
-﻿class SignalConfig {
+class SignalConfig {
   String addr;
   String signalSecret;
   String allowedOrigins;
@@ -21,7 +21,8 @@
     this.tlsKey = '',
     this.tlsAuto = false,
     this.maxIpConns = 64,
-    this.trustedProxies = '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128',
+    this.trustedProxies =
+        '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128',
     this.metricsAddr = ':9090',
   });
 
@@ -80,17 +81,15 @@
       tlsKey: json['tls_key'] as String? ?? '',
       tlsAuto: json['tls_auto'] as bool? ?? false,
       maxIpConns: json['max_ip_conns'] as int? ?? 64,
-      trustedProxies: json['trusted_proxies'] as String? ??
+      trustedProxies:
+          json['trusted_proxies'] as String? ??
           '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128',
       metricsAddr: json['metrics_addr'] as String? ?? ':9090',
     );
   }
 
   List<String> toCliArgs() {
-    final args = <String>[
-      '-addr',
-      addr.trim(),
-    ];
+    final args = <String>['-addr', addr.trim()];
     if (signalSecret.trim().isNotEmpty) {
       args.addAll(['-signal-secret', signalSecret.trim()]);
     }

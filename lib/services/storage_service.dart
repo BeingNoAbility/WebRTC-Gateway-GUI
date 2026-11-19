@@ -1,5 +1,7 @@
-﻿import 'dart:convert';
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../core/constants/app_constants.dart';
 import '../core/models/agent_config.dart';
 import '../core/models/agent_instance.dart';
@@ -24,18 +26,16 @@ class StorageService {
     if (jsonStr != null && jsonStr.isNotEmpty) {
       try {
         final list = jsonDecode(jsonStr) as List<dynamic>;
-        return list.map((item) => AgentInstance.fromJson(item as Map<String, dynamic>)).toList();
+        return list
+            .map((item) => AgentInstance.fromJson(item as Map<String, dynamic>))
+            .toList();
       } catch (_) {}
     }
 
     // Fallback: Check if there is an existing legacy single agent config
     final legacyConfig = loadAgentConfig();
     return [
-      AgentInstance(
-        id: 'agent-primary',
-        name: '默认主穿透节点',
-        config: legacyConfig,
-      ),
+      AgentInstance(id: 'agent-primary', name: '默认主穿透节点', config: legacyConfig),
     ];
   }
 
@@ -99,7 +99,9 @@ class StorageService {
     }
     try {
       final list = jsonDecode(jsonStr) as List<dynamic>;
-      return list.map((item) => RemoteNode.fromJson(item as Map<String, dynamic>)).toList();
+      return list
+          .map((item) => RemoteNode.fromJson(item as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return [];
     }

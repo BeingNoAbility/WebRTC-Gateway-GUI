@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/models/agent_config.dart';
 import '../../core/models/agent_instance.dart';
@@ -28,14 +29,28 @@ class _AgentScreenState extends State<AgentScreen> {
     final isEditing = existing != null;
 
     final nameCtrl = TextEditingController(text: existing?.name ?? '新穿透服务');
-    final nodeIdCtrl = TextEditingController(text: existing?.config.nodeId ?? 'node-${DateTime.now().millisecondsSinceEpoch % 10000}');
-    final targetCtrl = TextEditingController(text: existing?.config.target ?? 'http://127.0.0.1:8080');
+    final nodeIdCtrl = TextEditingController(
+      text:
+          existing?.config.nodeId ??
+          'node-${DateTime.now().millisecondsSinceEpoch % 10000}',
+    );
+    final targetCtrl = TextEditingController(
+      text: existing?.config.target ?? 'http://127.0.0.1:8080',
+    );
     final dirCtrl = TextEditingController(text: existing?.config.dir ?? '');
     final fileCtrl = TextEditingController(text: existing?.config.file ?? '');
-    final signalCtrl = TextEditingController(text: existing?.config.signal ?? 'ws://127.0.0.1:8888/ws');
-    final signalSecretCtrl = TextEditingController(text: existing?.config.signalSecret ?? '');
-    final accessSecretCtrl = TextEditingController(text: existing?.config.accessSecret ?? '');
-    final portalUrlCtrl = TextEditingController(text: existing?.config.portalUrl ?? 'http://127.0.0.1:8888');
+    final signalCtrl = TextEditingController(
+      text: existing?.config.signal ?? 'ws://127.0.0.1:8888/ws',
+    );
+    final signalSecretCtrl = TextEditingController(
+      text: existing?.config.signalSecret ?? '',
+    );
+    final accessSecretCtrl = TextEditingController(
+      text: existing?.config.accessSecret ?? '',
+    );
+    final portalUrlCtrl = TextEditingController(
+      text: existing?.config.portalUrl ?? 'http://127.0.0.1:8888',
+    );
 
     AgentMode selectedMode = existing?.config.mode ?? AgentMode.reverseProxy;
 
@@ -47,9 +62,15 @@ class _AgentScreenState extends State<AgentScreen> {
             final isDark = Theme.of(dialogCtx).brightness == Brightness.dark;
 
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
-              title: Text(isEditing ? '编辑 Agent [${existing.name}]' : '创建新 Agent 实例'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              backgroundColor: isDark
+                  ? AppColors.darkCard
+                  : AppColors.lightCard,
+              title: Text(
+                isEditing ? '编辑 Agent [${existing.name}]' : '创建新 Agent 实例',
+              ),
               content: SizedBox(
                 width: 580,
                 child: SingleChildScrollView(
@@ -77,13 +98,20 @@ class _AgentScreenState extends State<AgentScreen> {
                               controller: nodeIdCtrl,
                               decoration: InputDecoration(
                                 labelText: '唯一 Node ID',
-                                prefixIcon: const Icon(Icons.badge_rounded, size: 18),
+                                prefixIcon: const Icon(
+                                  Icons.badge_rounded,
+                                  size: 18,
+                                ),
                                 suffixIcon: IconButton(
-                                  icon: const Icon(Icons.shuffle_rounded, size: 16),
+                                  icon: const Icon(
+                                    Icons.shuffle_rounded,
+                                    size: 16,
+                                  ),
                                   tooltip: '随机 ID',
                                   onPressed: () {
                                     setDialogState(() {
-                                      nodeIdCtrl.text = 'node-${DateTime.now().millisecondsSinceEpoch % 10000}';
+                                      nodeIdCtrl.text =
+                                          'node-${DateTime.now().millisecondsSinceEpoch % 10000}';
                                     });
                                   },
                                 ),
@@ -100,7 +128,9 @@ class _AgentScreenState extends State<AgentScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -130,7 +160,10 @@ class _AgentScreenState extends State<AgentScreen> {
                                 controller: dirCtrl,
                                 decoration: const InputDecoration(
                                   labelText: '本地共享目录 (-dir)',
-                                  prefixIcon: Icon(Icons.folder_open_rounded, size: 18),
+                                  prefixIcon: Icon(
+                                    Icons.folder_open_rounded,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                             ),
@@ -141,7 +174,8 @@ class _AgentScreenState extends State<AgentScreen> {
                               onPressed: () async {
                                 await provider.pickDirectory();
                                 setDialogState(() {
-                                  dirCtrl.text = provider.focusedAgent.config.dir;
+                                  dirCtrl.text =
+                                      provider.focusedAgent.config.dir;
                                 });
                               },
                             ),
@@ -155,18 +189,25 @@ class _AgentScreenState extends State<AgentScreen> {
                                 controller: fileCtrl,
                                 decoration: const InputDecoration(
                                   labelText: '本地单文件路径 (-file)',
-                                  prefixIcon: Icon(Icons.insert_drive_file_rounded, size: 18),
+                                  prefixIcon: Icon(
+                                    Icons.insert_drive_file_rounded,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             OutlinedButton.icon(
-                              icon: const Icon(Icons.file_open_rounded, size: 16),
+                              icon: const Icon(
+                                Icons.file_open_rounded,
+                                size: 16,
+                              ),
                               label: const Text('选择'),
                               onPressed: () async {
                                 await provider.pickFile();
                                 setDialogState(() {
-                                  fileCtrl.text = provider.focusedAgent.config.file;
+                                  fileCtrl.text =
+                                      provider.focusedAgent.config.file;
                                 });
                               },
                             ),
@@ -207,7 +248,10 @@ class _AgentScreenState extends State<AgentScreen> {
                               decoration: const InputDecoration(
                                 labelText: '信令秘钥 (-signal-secret)',
                                 hintText: '集群入网令牌',
-                                prefixIcon: Icon(Icons.security_rounded, size: 18),
+                                prefixIcon: Icon(
+                                  Icons.security_rounded,
+                                  size: 18,
+                                ),
                               ),
                             ),
                           ),
@@ -237,7 +281,9 @@ class _AgentScreenState extends State<AgentScreen> {
                     );
 
                     if (isEditing) {
-                      existing.name = nameCtrl.text.trim().isEmpty ? existing.name : nameCtrl.text.trim();
+                      existing.name = nameCtrl.text.trim().isEmpty
+                          ? existing.name
+                          : nameCtrl.text.trim();
                       existing.config = newCfg;
                       provider.updateAgent(existing);
                     } else {
@@ -285,7 +331,9 @@ class _AgentScreenState extends State<AgentScreen> {
                   ),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isDark ? AppColors.darkCardBorder : AppColors.lightCardBorder,
+                    color: isDark
+                        ? AppColors.darkCardBorder
+                        : AppColors.lightCardBorder,
                   ),
                 ),
                 child: LayoutBuilder(
@@ -304,8 +352,12 @@ class _AgentScreenState extends State<AgentScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            provider.hasRunningAgents ? Icons.hub_rounded : Icons.sensors_off_rounded,
-                            color: provider.hasRunningAgents ? AppColors.successGreen : AppColors.primaryCyan,
+                            provider.hasRunningAgents
+                                ? Icons.hub_rounded
+                                : Icons.sensors_off_rounded,
+                            color: provider.hasRunningAgents
+                                ? AppColors.successGreen
+                                : AppColors.primaryCyan,
                             size: 26,
                           ),
                         ),
@@ -328,22 +380,34 @@ class _AgentScreenState extends State<AgentScreen> {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: provider.hasRunningAgents
-                                          ? AppColors.successGreen.withValues(alpha: 0.12)
-                                          : AppColors.darkTextMuted.withValues(alpha: 0.12),
+                                          ? AppColors.successGreen.withValues(
+                                              alpha: 0.12,
+                                            )
+                                          : AppColors.darkTextMuted.withValues(
+                                              alpha: 0.12,
+                                            ),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: provider.hasRunningAgents
-                                            ? AppColors.successGreen.withValues(alpha: 0.3)
-                                            : AppColors.darkTextMuted.withValues(alpha: 0.3),
+                                            ? AppColors.successGreen.withValues(
+                                                alpha: 0.3,
+                                              )
+                                            : AppColors.darkTextMuted
+                                                  .withValues(alpha: 0.3),
                                       ),
                                     ),
                                     child: Text(
                                       '${provider.runningAgents} / ${provider.totalAgents} 运行中',
                                       style: TextStyle(
-                                        color: provider.hasRunningAgents ? AppColors.successGreen : AppColors.darkTextMuted,
+                                        color: provider.hasRunningAgents
+                                            ? AppColors.successGreen
+                                            : AppColors.darkTextMuted,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -356,7 +420,9 @@ class _AgentScreenState extends State<AgentScreen> {
                                 '支持同时运行多个 Web 反向代理、静态目录托管与 P2P 单文件直传进程，端口智能动态分流',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                  color: isDark
+                                      ? AppColors.darkTextMuted
+                                      : AppColors.lightTextMuted,
                                 ),
                               ),
                             ],
@@ -379,12 +445,20 @@ class _AgentScreenState extends State<AgentScreen> {
                           onPressed: () => _showAgentEditDialog(context),
                         ),
                         OutlinedButton.icon(
-                          icon: const Icon(Icons.play_arrow_rounded, size: 18, color: AppColors.successGreen),
+                          icon: const Icon(
+                            Icons.play_arrow_rounded,
+                            size: 18,
+                            color: AppColors.successGreen,
+                          ),
                           label: const Text('全部启动'),
                           onPressed: () async => await provider.startAll(),
                         ),
                         OutlinedButton.icon(
-                          icon: const Icon(Icons.stop_rounded, size: 18, color: AppColors.errorRed),
+                          icon: const Icon(
+                            Icons.stop_rounded,
+                            size: 18,
+                            color: AppColors.errorRed,
+                          ),
                           label: const Text('全部停止'),
                           onPressed: () async => await provider.stopAll(),
                         ),
@@ -432,21 +506,24 @@ class _AgentScreenState extends State<AgentScreen> {
                       icon: Icons.layers_rounded,
                       title: 'Agent 实例总数',
                       value: '${provider.totalAgents} 个',
-                      subtitle: '${provider.runningAgents} 在线 / ${provider.totalAgents - provider.runningAgents} 待命',
+                      subtitle:
+                          '${provider.runningAgents} 在线 / ${provider.totalAgents - provider.runningAgents} 待命',
                       accentColor: AppColors.accentIndigo,
                     ),
                     MetricCard(
                       icon: Icons.arrow_downward_rounded,
                       title: '集群总下行吞吐',
                       value: AgentMetrics.formatSpeed(provider.totalRxSpeed),
-                      subtitle: '累计: ${AgentMetrics.formatBytes(provider.totalRxBytes)}',
+                      subtitle:
+                          '累计: ${AgentMetrics.formatBytes(provider.totalRxBytes)}',
                       accentColor: AppColors.successGreen,
                     ),
                     MetricCard(
                       icon: Icons.arrow_upward_rounded,
                       title: '集群总上行吞吐',
                       value: AgentMetrics.formatSpeed(provider.totalTxSpeed),
-                      subtitle: '累计: ${AgentMetrics.formatBytes(provider.totalTxBytes)}',
+                      subtitle:
+                          '累计: ${AgentMetrics.formatBytes(provider.totalTxBytes)}',
                       accentColor: AppColors.warningAmber,
                     ),
                   ];
@@ -454,12 +531,16 @@ class _AgentScreenState extends State<AgentScreen> {
                   if (isWide) {
                     return Row(
                       children: cards
-                          .map((c) => Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                                  child: c,
+                          .map(
+                            (c) => Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
                                 ),
-                              ))
+                                child: c,
+                              ),
+                            ),
+                          )
                           .toList(),
                     );
                   } else {
@@ -496,7 +577,9 @@ class _AgentScreenState extends State<AgentScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.lightTextPrimary,
                     ),
                   ),
                   const Spacer(),
@@ -512,7 +595,13 @@ class _AgentScreenState extends State<AgentScreen> {
 
               // Detail View for a single focused Agent OR Multi-Agent Grid View
               if (_selectedAgentId != null) ...[
-                _buildAgentDetailView(context, agents.firstWhere((a) => a.id == _selectedAgentId, orElse: () => agents.first)),
+                _buildAgentDetailView(
+                  context,
+                  agents.firstWhere(
+                    (a) => a.id == _selectedAgentId,
+                    orElse: () => agents.first,
+                  ),
+                ),
               ] else ...[
                 if (agents.isEmpty)
                   Card(
@@ -521,7 +610,11 @@ class _AgentScreenState extends State<AgentScreen> {
                       child: Center(
                         child: Column(
                           children: [
-                            const Icon(Icons.router_outlined, size: 40, color: AppColors.darkTextMuted),
+                            const Icon(
+                              Icons.router_outlined,
+                              size: 40,
+                              color: AppColors.darkTextMuted,
+                            ),
                             const SizedBox(height: 10),
                             const Text('暂无 Agent 实例，点击上方“新建 Agent”添加'),
                           ],
@@ -534,7 +627,8 @@ class _AgentScreenState extends State<AgentScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: agents.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 12),
                     itemBuilder: (context, idx) {
                       final agent = agents[idx];
                       return _buildAgentCard(context, agent, provider, isDark);
@@ -547,10 +641,17 @@ class _AgentScreenState extends State<AgentScreen> {
               // Recent Logs Preview Banner
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.terminal_rounded, size: 20, color: AppColors.primaryCyan),
+                      const Icon(
+                        Icons.terminal_rounded,
+                        size: 20,
+                        color: AppColors.primaryCyan,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -560,7 +661,9 @@ class _AgentScreenState extends State<AgentScreen> {
                           style: TextStyle(
                             fontSize: 12,
                             fontFamily: 'monospace',
-                            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -608,12 +711,16 @@ class _AgentScreenState extends State<AgentScreen> {
                   decoration: BoxDecoration(
                     color: isRunning
                         ? AppColors.successGreen.withValues(alpha: 0.12)
-                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                        : (isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFE2E8F0)),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     _getModeIcon(config.mode),
-                    color: isRunning ? AppColors.successGreen : AppColors.primaryCyan,
+                    color: isRunning
+                        ? AppColors.successGreen
+                        : AppColors.primaryCyan,
                     size: 22,
                   ),
                 ),
@@ -631,17 +738,29 @@ class _AgentScreenState extends State<AgentScreen> {
                         children: [
                           Text(
                             agent.name,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                              color: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFE2E8F0),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               '#${config.nodeId}',
-                              style: const TextStyle(fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           StatusIndicatorBadge(status: agent.status),
@@ -652,7 +771,9 @@ class _AgentScreenState extends State<AgentScreen> {
                         _getModeTargetSummary(config),
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                          color: isDark
+                              ? AppColors.darkTextMuted
+                              : AppColors.lightTextMuted,
                           fontFamily: 'monospace',
                         ),
                         maxLines: 1,
@@ -674,9 +795,18 @@ class _AgentScreenState extends State<AgentScreen> {
                       }
                     },
                     itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'detail', child: Text('查看详情监控与控制')),
+                      const PopupMenuItem(
+                        value: 'detail',
+                        child: Text('查看详情监控与控制'),
+                      ),
                       const PopupMenuItem(value: 'edit', child: Text('修改配置')),
-                      const PopupMenuItem(value: 'delete', child: Text('删除此 Agent', style: TextStyle(color: AppColors.errorRed))),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          '删除此 Agent',
+                          style: TextStyle(color: AppColors.errorRed),
+                        ),
+                      ),
                     ],
                   ),
               ],
@@ -706,17 +836,31 @@ class _AgentScreenState extends State<AgentScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isRunning ? AppColors.errorRed : AppColors.primaryCyan,
-                        foregroundColor: isRunning ? Colors.white : Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        backgroundColor: isRunning
+                            ? AppColors.errorRed
+                            : AppColors.primaryCyan,
+                        foregroundColor: isRunning
+                            ? Colors.white
+                            : Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                       ),
-                      icon: Icon(isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 18),
+                      icon: Icon(
+                        isRunning
+                            ? Icons.stop_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 18,
+                      ),
                       label: Text(isRunning ? '停止' : '启动'),
                       onPressed: () async {
                         if (isRunning) {
                           await agent.stop();
                         } else {
-                          await agent.start(customBinaryPath: provider.customBinaryPath);
+                          await agent.start(
+                            customBinaryPath: provider.customBinaryPath,
+                          );
                         }
                       },
                     ),
@@ -739,17 +883,27 @@ class _AgentScreenState extends State<AgentScreen> {
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isRunning ? AppColors.errorRed : AppColors.primaryCyan,
+                      backgroundColor: isRunning
+                          ? AppColors.errorRed
+                          : AppColors.primaryCyan,
                       foregroundColor: isRunning ? Colors.white : Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                     ),
-                    icon: Icon(isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 18),
+                    icon: Icon(
+                      isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                      size: 18,
+                    ),
                     label: Text(isRunning ? '停止' : '启动'),
                     onPressed: () async {
                       if (isRunning) {
                         await agent.stop();
                       } else {
-                        await agent.start(customBinaryPath: provider.customBinaryPath);
+                        await agent.start(
+                          customBinaryPath: provider.customBinaryPath,
+                        );
                       }
                     },
                   ),
@@ -766,9 +920,18 @@ class _AgentScreenState extends State<AgentScreen> {
                       }
                     },
                     itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'detail', child: Text('查看详情监控与控制')),
+                      const PopupMenuItem(
+                        value: 'detail',
+                        child: Text('查看详情监控与控制'),
+                      ),
                       const PopupMenuItem(value: 'edit', child: Text('修改配置')),
-                      const PopupMenuItem(value: 'delete', child: Text('删除此 Agent', style: TextStyle(color: AppColors.errorRed))),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          '删除此 Agent',
+                          style: TextStyle(color: AppColors.errorRed),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -792,57 +955,79 @@ class _AgentScreenState extends State<AgentScreen> {
                   ),
                 ],
 
-            if (isRunning) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      'P2P 对等节点: ${agent.metrics.activePeers} 个',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                if (isRunning) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                    Text(
-                      '数据流: ${agent.metrics.activeStreams} / ${agent.metrics.maxStreams}',
-                      style: const TextStyle(fontSize: 11),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    Text(
-                      '下行: ${AgentMetrics.formatSpeed(agent.metrics.rxSpeedBytesPerSec)}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.successGreen),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'P2P 对等节点: ${agent.metrics.activePeers} 个',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '数据流: ${agent.metrics.activeStreams} / ${agent.metrics.maxStreams}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        Text(
+                          '下行: ${AgentMetrics.formatSpeed(agent.metrics.rxSpeedBytesPerSec)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.successGreen,
+                          ),
+                        ),
+                        Text(
+                          '上行: ${AgentMetrics.formatSpeed(agent.metrics.txSpeedBytesPerSec)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.warningAmber,
+                          ),
+                        ),
+                        Text(
+                          'Prometheus: ${config.metricsAddr}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark
+                                ? AppColors.darkTextMuted
+                                : AppColors.lightTextMuted,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '上行: ${AgentMetrics.formatSpeed(agent.metrics.txSpeedBytesPerSec)}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.warningAmber),
-                    ),
-                    Text(
-                      'Prometheus: ${config.metricsAddr}',
-                      style: TextStyle(fontSize: 10, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
 
-            if (agent.errorMessage != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                '异常: ${agent.errorMessage}',
-                style: const TextStyle(color: AppColors.errorRed, fontSize: 11),
-              ),
-            ],
-          ],
-        );
-      },
-    ),
-  ),
-);
+                if (agent.errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '异常: ${agent.errorMessage}',
+                    style: const TextStyle(
+                      color: AppColors.errorRed,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Widget _buildAgentDetailView(BuildContext context, AgentInstance agent) {
@@ -862,23 +1047,39 @@ class _AgentScreenState extends State<AgentScreen> {
                   children: [
                     Text(
                       agent.name,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     StatusIndicatorBadge(status: agent.status),
                     const Spacer(),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: agent.isRunning ? AppColors.errorRed : AppColors.primaryCyan,
-                        foregroundColor: agent.isRunning ? Colors.white : Colors.black,
+                        backgroundColor: agent.isRunning
+                            ? AppColors.errorRed
+                            : AppColors.primaryCyan,
+                        foregroundColor: agent.isRunning
+                            ? Colors.white
+                            : Colors.black,
                       ),
-                      icon: Icon(agent.isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 18),
+                      icon: Icon(
+                        agent.isRunning
+                            ? Icons.stop_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 18,
+                      ),
                       label: Text(agent.isRunning ? '停止' : '启动'),
                       onPressed: () async {
                         if (agent.isRunning) {
                           await agent.stop();
                         } else {
-                          await agent.start(customBinaryPath: context.read<AgentProvider>().customBinaryPath);
+                          await agent.start(
+                            customBinaryPath: context
+                                .read<AgentProvider>()
+                                .customBinaryPath,
+                          );
                         }
                       },
                     ),
@@ -886,15 +1087,46 @@ class _AgentScreenState extends State<AgentScreen> {
                     OutlinedButton.icon(
                       icon: const Icon(Icons.edit_rounded, size: 16),
                       label: const Text('编辑参数'),
-                      onPressed: () => _showAgentEditDialog(context, existing: agent),
+                      onPressed: () =>
+                          _showAgentEditDialog(context, existing: agent),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text('运行模式: ${config.mode.displayName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                Text('目标地址: ${_getModeTargetSummary(config)}', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted)),
-                Text('信令服务器: ${config.signal}', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted)),
-                Text('Prometheus 监控端口: ${config.metricsAddr}', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted)),
+                Text(
+                  '运行模式: ${config.mode.displayName}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '目标地址: ${_getModeTargetSummary(config)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.darkTextMuted
+                        : AppColors.lightTextMuted,
+                  ),
+                ),
+                Text(
+                  '信令服务器: ${config.signal}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.darkTextMuted
+                        : AppColors.lightTextMuted,
+                  ),
+                ),
+                Text(
+                  'Prometheus 监控端口: ${config.metricsAddr}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.darkTextMuted
+                        : AppColors.lightTextMuted,
+                  ),
+                ),
               ],
             ),
           ),

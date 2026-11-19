@@ -1,4 +1,4 @@
-﻿enum LogLevel {
+enum LogLevel {
   info,
   warning,
   error,
@@ -65,18 +65,18 @@ class LogEntry {
   factory LogEntry.fromRawLine(String line, LogSource source) {
     LogLevel level = LogLevel.info;
     final lower = line.toLowerCase();
-    if (lower.contains('error') || lower.contains('fatal') || lower.contains('fail')) {
+    if (lower.contains('error') ||
+        lower.contains('fatal') ||
+        lower.contains('fail')) {
       level = LogLevel.error;
     } else if (lower.contains('warn') || lower.contains('warning')) {
       level = LogLevel.warning;
-    } else if (lower.contains('success') || lower.contains('connected') || lower.contains('ready')) {
+    } else if (lower.contains('success') ||
+        lower.contains('connected') ||
+        lower.contains('ready')) {
       level = LogLevel.success;
     }
 
-    return LogEntry(
-      level: level,
-      source: source,
-      message: line,
-    );
+    return LogEntry(level: level, source: source, message: line);
   }
 }

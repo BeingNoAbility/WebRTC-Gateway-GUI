@@ -1,4 +1,4 @@
-﻿class RemoteNode {
+class RemoteNode {
   final String id;
   String title;
   String nodeId;
@@ -18,7 +18,9 @@
   }) : tags = tags ?? [];
 
   String get accessUrl {
-    final base = portalUrl.endsWith('/') ? portalUrl.substring(0, portalUrl.length - 1) : portalUrl;
+    final base = portalUrl.endsWith('/')
+        ? portalUrl.substring(0, portalUrl.length - 1)
+        : portalUrl;
     return '$base/#$nodeId';
   }
 
@@ -41,8 +43,12 @@
       nodeId: json['node_id'] as String? ?? '',
       portalUrl: json['portal_url'] as String? ?? 'http://127.0.0.1:8888',
       accessSecret: json['access_secret'] as String? ?? '',
-      lastConnected: DateTime.tryParse(json['last_connected'] as String? ?? '') ?? DateTime.now(),
-      tags: (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      lastConnected:
+          DateTime.tryParse(json['last_connected'] as String? ?? '') ??
+          DateTime.now(),
+      tags:
+          (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
+          [],
     );
   }
 }

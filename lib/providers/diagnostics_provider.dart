@@ -1,4 +1,5 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
+
 import '../core/constants/app_constants.dart';
 import '../core/utils/network_tester.dart';
 
@@ -39,12 +40,14 @@ class DiagnosticsProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      _results.add(DiagnosticResult(
-        success: false,
-        title: '目标地址解析失败',
-        details: '$targetUrl ($e)',
-        latencyMs: 0,
-      ));
+      _results.add(
+        DiagnosticResult(
+          success: false,
+          title: '目标地址解析失败',
+          details: '$targetUrl ($e)',
+          latencyMs: 0,
+        ),
+      );
       notifyListeners();
     }
 
@@ -54,25 +57,31 @@ class DiagnosticsProvider extends ChangeNotifier {
       final sHost = sUri.host.isNotEmpty ? sUri.host : '127.0.0.1';
       final sPort = sUri.hasPort ? sUri.port : 8888;
       final signalResult = await NetworkTester.testTcpPort(sHost, sPort);
-      _results.add(DiagnosticResult(
-        success: signalResult.success,
-        title: '信令服务器端口测试 ($sHost:$sPort)',
-        details: signalResult.details,
-        latencyMs: signalResult.latencyMs,
-      ));
+      _results.add(
+        DiagnosticResult(
+          success: signalResult.success,
+          title: '信令服务器端口测试 ($sHost:$sPort)',
+          details: signalResult.details,
+          latencyMs: signalResult.latencyMs,
+        ),
+      );
       notifyListeners();
     } catch (e) {
-      _results.add(DiagnosticResult(
-        success: false,
-        title: '信令服务器地址无效',
-        details: '$signalUrl ($e)',
-        latencyMs: 0,
-      ));
+      _results.add(
+        DiagnosticResult(
+          success: false,
+          title: '信令服务器地址无效',
+          details: '$signalUrl ($e)',
+          latencyMs: 0,
+        ),
+      );
       notifyListeners();
     }
 
     // 3. Test STUN servers
-    final serversToTest = stunServers.isNotEmpty ? stunServers : AppConstants.defaultStunServers;
+    final serversToTest = stunServers.isNotEmpty
+        ? stunServers
+        : AppConstants.defaultStunServers;
     for (final stun in serversToTest) {
       final res = await NetworkTester.testStun(stun);
       _results.add(res);

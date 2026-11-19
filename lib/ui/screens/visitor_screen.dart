@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/models/remote_node.dart';
 import '../../providers/visitor_provider.dart';
@@ -16,7 +17,9 @@ class VisitorScreen extends StatefulWidget {
 class _VisitorScreenState extends State<VisitorScreen> {
   final _quickConnectCtrl = TextEditingController();
   final _manualNodeIdCtrl = TextEditingController();
-  final _manualPortalCtrl = TextEditingController(text: 'http://127.0.0.1:8888');
+  final _manualPortalCtrl = TextEditingController(
+    text: 'http://127.0.0.1:8888',
+  );
   final _manualSecretCtrl = TextEditingController();
 
   @override
@@ -31,16 +34,24 @@ class _VisitorScreenState extends State<VisitorScreen> {
   void _showAddNodeDialog(BuildContext context, {RemoteNode? existing}) {
     final titleCtrl = TextEditingController(text: existing?.title ?? '');
     final nodeIdCtrl = TextEditingController(text: existing?.nodeId ?? '');
-    final portalCtrl = TextEditingController(text: existing?.portalUrl ?? 'http://127.0.0.1:8888');
-    final secretCtrl = TextEditingController(text: existing?.accessSecret ?? '');
-    final tagCtrl = TextEditingController(text: existing?.tags.join(', ') ?? '');
+    final portalCtrl = TextEditingController(
+      text: existing?.portalUrl ?? 'http://127.0.0.1:8888',
+    );
+    final secretCtrl = TextEditingController(
+      text: existing?.accessSecret ?? '',
+    );
+    final tagCtrl = TextEditingController(
+      text: existing?.tags.join(', ') ?? '',
+    );
 
     showDialog(
       context: context,
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
           title: Text(existing == null ? '添加常用穿透节点' : '编辑节点'),
           content: SingleChildScrollView(
@@ -51,17 +62,23 @@ class _VisitorScreenState extends State<VisitorScreen> {
                 children: [
                   TextField(
                     controller: titleCtrl,
-                    decoration: const InputDecoration(labelText: '节点别名 (如: 家庭 NAS)'),
+                    decoration: const InputDecoration(
+                      labelText: '节点别名 (如: 家庭 NAS)',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: nodeIdCtrl,
-                    decoration: const InputDecoration(labelText: '目标 Node ID (如: myhome)'),
+                    decoration: const InputDecoration(
+                      labelText: '目标 Node ID (如: myhome)',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: portalCtrl,
-                    decoration: const InputDecoration(labelText: '信令/门户 URL (如: http://127.0.0.1:8888)'),
+                    decoration: const InputDecoration(
+                      labelText: '信令/门户 URL (如: http://127.0.0.1:8888)',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -72,7 +89,9 @@ class _VisitorScreenState extends State<VisitorScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: tagCtrl,
-                    decoration: const InputDecoration(labelText: '标签 (以逗号分隔，如: NAS, 媒体)'),
+                    decoration: const InputDecoration(
+                      labelText: '标签 (以逗号分隔，如: NAS, 媒体)',
+                    ),
                   ),
                 ],
               ),
@@ -96,17 +115,25 @@ class _VisitorScreenState extends State<VisitorScreen> {
 
                 final provider = context.read<VisitorProvider>();
                 if (existing == null) {
-                  provider.addNode(RemoteNode(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    title: titleCtrl.text.trim().isEmpty ? nodeId : titleCtrl.text.trim(),
-                    nodeId: nodeId,
-                    portalUrl: portalCtrl.text.trim().isEmpty ? 'http://127.0.0.1:8888' : portalCtrl.text.trim(),
-                    accessSecret: secretCtrl.text.trim(),
-                    lastConnected: DateTime.now(),
-                    tags: tags,
-                  ));
+                  provider.addNode(
+                    RemoteNode(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      title: titleCtrl.text.trim().isEmpty
+                          ? nodeId
+                          : titleCtrl.text.trim(),
+                      nodeId: nodeId,
+                      portalUrl: portalCtrl.text.trim().isEmpty
+                          ? 'http://127.0.0.1:8888'
+                          : portalCtrl.text.trim(),
+                      accessSecret: secretCtrl.text.trim(),
+                      lastConnected: DateTime.now(),
+                      tags: tags,
+                    ),
+                  );
                 } else {
-                  existing.title = titleCtrl.text.trim().isEmpty ? nodeId : titleCtrl.text.trim();
+                  existing.title = titleCtrl.text.trim().isEmpty
+                      ? nodeId
+                      : titleCtrl.text.trim();
                   existing.nodeId = nodeId;
                   existing.portalUrl = portalCtrl.text.trim();
                   existing.accessSecret = secretCtrl.text.trim();
@@ -151,7 +178,11 @@ class _VisitorScreenState extends State<VisitorScreen> {
                           color: AppColors.primaryCyan.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.travel_explore_rounded, color: AppColors.primaryCyan, size: 24),
+                        child: const Icon(
+                          Icons.travel_explore_rounded,
+                          color: AppColors.primaryCyan,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -160,14 +191,19 @@ class _VisitorScreenState extends State<VisitorScreen> {
                           children: [
                             const Text(
                               '访客远程直连中心 (Visitor & Connection Hub)',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               '输入远程 Node ID 或分享链接，一键穿透连接目标 Web 服务或 P2P 分享',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                color: isDark
+                                    ? AppColors.darkTextMuted
+                                    : AppColors.lightTextMuted,
                               ),
                             ),
                           ],
@@ -214,48 +250,84 @@ class _VisitorScreenState extends State<VisitorScreen> {
                     children: [
                       const Text(
                         '快速解析或输入分享链接',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _quickConnectCtrl,
-                              decoration: InputDecoration(
-                                hintText: '粘贴完整的分享链接 (如: http://127.0.0.1:8888/#myhome?exp=...&sign=...)',
-                                prefixIcon: const Icon(Icons.link_rounded, size: 18),
-                                suffixIcon: IconButton(
-                                  icon: const Icon(Icons.content_paste_rounded, size: 18),
-                                  tooltip: '从剪贴板粘贴',
-                                  onPressed: () async {
-                                    final data = await Clipboard.getData('text/plain');
-                                    if (data?.text != null) {
-                                      _quickConnectCtrl.text = data!.text!;
-                                      provider.parseLink(data.text!);
-                                    }
-                                  },
-                                ),
+                      LayoutBuilder(
+                        builder: (context, qConstraints) {
+                          final isNarrowQuick = qConstraints.maxWidth < 520;
+
+                          final quickField = TextField(
+                            controller: _quickConnectCtrl,
+                            decoration: InputDecoration(
+                              hintText: '粘贴完整的分享链接 (如: http://127.0.0.1:8888/#myhome?exp=...&sign=...)',
+                              prefixIcon: const Icon(
+                                Icons.link_rounded,
+                                size: 18,
                               ),
-                              onSubmitted: (url) {
-                                if (url.trim().isNotEmpty) {
-                                  provider.launchCustomUrl(url.trim());
-                                }
-                              },
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.content_paste_rounded,
+                                  size: 18,
+                                ),
+                                tooltip: '从剪贴板粘贴',
+                                onPressed: () async {
+                                  final data = await Clipboard.getData(
+                                    'text/plain',
+                                  );
+                                  if (data?.text != null) {
+                                    _quickConnectCtrl.text = data!.text!;
+                                    provider.parseLink(data.text!);
+                                  }
+                                },
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          ElevatedButton.icon(
+                            onSubmitted: (url) {
+                              if (url.trim().isNotEmpty) {
+                                provider.launchCustomUrl(url.trim());
+                              }
+                            },
+                          );
+
+                          final quickBtn = ElevatedButton.icon(
                             icon: const Icon(Icons.launch_rounded, size: 18),
                             label: const Text('直达访问'),
+                            style: isNarrowQuick
+                                ? ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  )
+                                : null,
                             onPressed: () {
                               final text = _quickConnectCtrl.text.trim();
                               if (text.isNotEmpty) {
                                 provider.launchCustomUrl(text);
                               }
                             },
-                          ),
-                        ],
+                          );
+
+                          if (isNarrowQuick) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                quickField,
+                                const SizedBox(height: 10),
+                                quickBtn,
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: quickField),
+                              const SizedBox(width: 10),
+                              quickBtn,
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
 
@@ -263,40 +335,52 @@ class _VisitorScreenState extends State<VisitorScreen> {
                       LayoutBuilder(
                         builder: (context, constraints) {
                           final isNarrow = constraints.maxWidth < 620;
+                          final isNarrowInputs = constraints.maxWidth < 480;
 
-                          final inputs = Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: _manualNodeIdCtrl,
-                                  decoration: const InputDecoration(
-                                    labelText: '目标 Node ID',
-                                    hintText: '如: myhome',
-                                    prefixIcon: Icon(Icons.badge_rounded, size: 18),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                flex: 3,
-                                child: TextField(
-                                  controller: _manualPortalCtrl,
-                                  decoration: const InputDecoration(
-                                    labelText: '信令/门户 URL',
-                                    hintText: '如: http://127.0.0.1:8888',
-                                    prefixIcon: Icon(Icons.cloud_queue_rounded, size: 18),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          final nodeIdField = TextField(
+                            controller: _manualNodeIdCtrl,
+                            decoration: const InputDecoration(
+                              labelText: '目标 Node ID',
+                              hintText: '如: myhome',
+                              prefixIcon: Icon(Icons.badge_rounded, size: 18),
+                            ),
                           );
+
+                          final portalField = TextField(
+                            controller: _manualPortalCtrl,
+                            decoration: const InputDecoration(
+                              labelText: '信令/门户 URL',
+                              hintText: '如: http://127.0.0.1:8888',
+                              prefixIcon: Icon(
+                                Icons.cloud_queue_rounded,
+                                size: 18,
+                              ),
+                            ),
+                          );
+
+                          final inputs = isNarrowInputs
+                              ? Column(
+                                  children: [
+                                    nodeIdField,
+                                    const SizedBox(height: 10),
+                                    portalField,
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(flex: 2, child: nodeIdField),
+                                    const SizedBox(width: 10),
+                                    Expanded(flex: 3, child: portalField),
+                                  ],
+                                );
 
                           final connectBtn = ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.accentIndigo,
                               foregroundColor: Colors.white,
-                              padding: isNarrow ? const EdgeInsets.symmetric(vertical: 12) : null,
+                              padding: isNarrow
+                                  ? const EdgeInsets.symmetric(vertical: 12)
+                                  : null,
                             ),
                             icon: const Icon(Icons.login_rounded, size: 18),
                             label: const Text('连接节点'),
@@ -304,7 +388,9 @@ class _VisitorScreenState extends State<VisitorScreen> {
                               final nodeId = _manualNodeIdCtrl.text.trim();
                               final portal = _manualPortalCtrl.text.trim();
                               if (nodeId.isNotEmpty) {
-                                final base = portal.endsWith('/') ? portal.substring(0, portal.length - 1) : portal;
+                                final base = portal.endsWith('/')
+                                    ? portal.substring(0, portal.length - 1)
+                                    : portal;
                                 final fullUrl = '$base/#$nodeId';
                                 provider.launchCustomUrl(fullUrl);
                               }
@@ -344,7 +430,9 @@ class _VisitorScreenState extends State<VisitorScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                 ),
               ),
               const SizedBox(height: 10),
@@ -356,7 +444,13 @@ class _VisitorScreenState extends State<VisitorScreen> {
                     child: Center(
                       child: Column(
                         children: [
-                          Icon(Icons.bookmark_border_rounded, size: 40, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+                          Icon(
+                            Icons.bookmark_border_rounded,
+                            size: 40,
+                            color: isDark
+                                ? AppColors.darkTextMuted
+                                : AppColors.lightTextMuted,
+                          ),
                           const SizedBox(height: 10),
                           const Text('暂无保存的节点，点击右上角“添加常用节点”'),
                         ],
@@ -369,10 +463,12 @@ class _VisitorScreenState extends State<VisitorScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: nodes.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 10),
                   itemBuilder: (context, idx) {
                     final node = nodes[idx];
-                    final dateStr = DateFormat('MM-dd HH:mm').format(node.lastConnected);
+                    final dateStr = DateFormat('MM-dd HH:mm')
+                        .format(node.lastConnected);
 
                     return Card(
                       child: Padding(
@@ -387,34 +483,55 @@ class _VisitorScreenState extends State<VisitorScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accentIndigo.withValues(alpha: 0.12),
+                                    color: AppColors.accentIndigo.withValues(
+                                      alpha: 0.12,
+                                    ),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: const Icon(Icons.dns_rounded, color: AppColors.accentIndigo, size: 22),
+                                  child: const Icon(
+                                    Icons.dns_rounded,
+                                    color: AppColors.accentIndigo,
+                                    size: 22,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Wrap(
                                         spacing: 8,
                                         runSpacing: 4,
-                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
                                         children: [
                                           Text(
                                             node.title,
-                                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
-                                              borderRadius: BorderRadius.circular(6),
+                                              color: isDark
+                                                  ? const Color(0xFF0F172A)
+                                                  : const Color(0xFFE2E8F0),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: Text(
                                               '#${node.nodeId}',
-                                              style: const TextStyle(fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontFamily: 'monospace',
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                           if (!isNarrow) ...[
@@ -423,7 +540,9 @@ class _VisitorScreenState extends State<VisitorScreen> {
                                               '最近访问: $dateStr',
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                                color: isDark
+                                                    ? AppColors.darkTextMuted
+                                                    : AppColors.lightTextMuted,
                                               ),
                                             ),
                                           ],
@@ -434,7 +553,9 @@ class _VisitorScreenState extends State<VisitorScreen> {
                                         node.accessUrl,
                                         style: TextStyle(
                                           fontSize: 11,
-                                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                          color: isDark
+                                              ? AppColors.darkTextMuted
+                                              : AppColors.lightTextMuted,
                                           fontFamily: 'monospace',
                                         ),
                                         maxLines: 1,
@@ -446,15 +567,27 @@ class _VisitorScreenState extends State<VisitorScreen> {
                                           spacing: 6,
                                           children: node.tags.map((tag) {
                                             return Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 1.5,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: AppColors.primaryCyan.withValues(alpha: 0.1),
-                                                borderRadius: BorderRadius.circular(4),
-                                                border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.3)),
+                                                color: AppColors.primaryCyan
+                                                    .withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                border: Border.all(
+                                                  color: AppColors.primaryCyan
+                                                      .withValues(alpha: 0.3),
+                                                ),
                                               ),
                                               child: Text(
                                                 tag,
-                                                style: const TextStyle(color: AppColors.primaryCyan, fontSize: 10),
+                                                style: const TextStyle(
+                                                  color: AppColors.primaryCyan,
+                                                  fontSize: 10,
+                                                ),
                                               ),
                                             );
                                           }).toList(),
@@ -467,34 +600,70 @@ class _VisitorScreenState extends State<VisitorScreen> {
                             );
 
                             final actionButtons = Row(
-                              mainAxisSize: isNarrow ? MainAxisSize.max : MainAxisSize.min,
+                              mainAxisSize: isNarrow
+                                  ? MainAxisSize.max
+                                  : MainAxisSize.min,
                               children: [
                                 if (isNarrow)
-                                  Text(
-                                    dateStr,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                  Expanded(
+                                    child: Text(
+                                      dateStr,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isDark
+                                            ? AppColors.darkTextMuted
+                                            : AppColors.lightTextMuted,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                if (isNarrow) const Spacer(),
                                 IconButton(
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.all(6),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
                                   tooltip: '编辑',
-                                  onPressed: () => _showAddNodeDialog(context, existing: node),
+                                  onPressed: () => _showAddNodeDialog(
+                                    context,
+                                    existing: node,
+                                  ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.errorRed),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.all(6),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 18,
+                                    color: AppColors.errorRed,
+                                  ),
                                   tooltip: '删除',
                                   onPressed: () => provider.deleteNode(node.id),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 4),
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primaryCyan,
                                     foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
                                   ),
-                                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                                  icon: const Icon(
+                                    Icons.open_in_browser_rounded,
+                                    size: 16,
+                                  ),
                                   label: const Text('打开'),
                                   onPressed: () => provider.openNode(node),
                                 ),

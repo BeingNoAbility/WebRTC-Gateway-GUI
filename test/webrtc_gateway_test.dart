@@ -67,11 +67,20 @@ void main() {
       expect(args, contains('-node-id'));
       expect(args[args.indexOf('-node-id') + 1], equals('vault-1'));
       expect(args, contains('-target'));
-      expect(args[args.indexOf('-target') + 1], equals('http://127.0.0.1:3000'));
+      expect(
+        args[args.indexOf('-target') + 1],
+        equals('http://127.0.0.1:3000'),
+      );
       expect(args, contains('-signal'));
-      expect(args[args.indexOf('-signal') + 1], equals('ws://127.0.0.1:8888/ws'));
+      expect(
+        args[args.indexOf('-signal') + 1],
+        equals('ws://127.0.0.1:8888/ws'),
+      );
       expect(args, contains('-signal-secret'));
-      expect(args[args.indexOf('-signal-secret') + 1], equals('cluster-secret'));
+      expect(
+        args[args.indexOf('-signal-secret') + 1],
+        equals('cluster-secret'),
+      );
       expect(args, contains('-access-secret'));
       expect(args[args.indexOf('-access-secret') + 1], equals('visitor-pass'));
     });

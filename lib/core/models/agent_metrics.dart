@@ -1,4 +1,4 @@
-﻿class AgentMetrics {
+class AgentMetrics {
   final int activePeers;
   final int activeStreams;
   final int maxStreams;
@@ -61,7 +61,8 @@
     double txSpeed = 0.0;
 
     if (previousMetrics != null) {
-      final timeDiffSec = now.difference(previousMetrics.timestamp).inMilliseconds / 1000.0;
+      final timeDiffSec =
+          now.difference(previousMetrics.timestamp).inMilliseconds / 1000.0;
       if (timeDiffSec > 0.1) {
         if (rxTotal >= previousMetrics.rxBytesTotal) {
           rxSpeed = (rxTotal - previousMetrics.rxBytesTotal) / timeDiffSec;

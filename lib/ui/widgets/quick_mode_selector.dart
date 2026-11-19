@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/models/agent_config.dart';
 
@@ -21,11 +22,29 @@ class QuickModeSelector extends StatelessWidget {
         if (isNarrow) {
           return Column(
             children: [
-              _buildModeCard(context, AgentMode.reverseProxy, Icons.alt_route_rounded, 'Web 应用反代', '反向代理现有本地或局域网 HTTP/WS 站点'),
+              _buildModeCard(
+                context,
+                AgentMode.reverseProxy,
+                Icons.alt_route_rounded,
+                'Web 应用反代',
+                '反向代理现有本地或局域网 HTTP/WS 站点',
+              ),
               const SizedBox(height: 8),
-              _buildModeCard(context, AgentMode.directory, Icons.folder_shared_rounded, '本地目录托管', '暗黑风文件浏览与只读下载'),
+              _buildModeCard(
+                context,
+                AgentMode.directory,
+                Icons.folder_shared_rounded,
+                '本地目录托管',
+                '暗黑风文件浏览与只读下载',
+              ),
               const SizedBox(height: 8),
-              _buildModeCard(context, AgentMode.singleFile, Icons.file_download_rounded, '单文件分发', '零端口监听 P2P 极速直传大文件'),
+              _buildModeCard(
+                context,
+                AgentMode.singleFile,
+                Icons.file_download_rounded,
+                '单文件分发',
+                '零端口监听 P2P 极速直传大文件',
+              ),
             ],
           );
         }
@@ -33,15 +52,33 @@ class QuickModeSelector extends StatelessWidget {
         return Row(
           children: [
             Expanded(
-              child: _buildModeCard(context, AgentMode.reverseProxy, Icons.alt_route_rounded, 'Web 应用反代', '反向代理现有本地/局域网服务'),
+              child: _buildModeCard(
+                context,
+                AgentMode.reverseProxy,
+                Icons.alt_route_rounded,
+                'Web 应用反代',
+                '反向代理现有本地/局域网服务',
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _buildModeCard(context, AgentMode.directory, Icons.folder_shared_rounded, '本地目录托管', '暗黑风文件浏览与下载'),
+              child: _buildModeCard(
+                context,
+                AgentMode.directory,
+                Icons.folder_shared_rounded,
+                '本地目录托管',
+                '暗黑风文件浏览与下载',
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _buildModeCard(context, AgentMode.singleFile, Icons.file_download_rounded, '单文件分发', 'P2P 极速直传大文件'),
+              child: _buildModeCard(
+                context,
+                AgentMode.singleFile,
+                Icons.file_download_rounded,
+                '单文件分发',
+                'P2P 极速直传大文件',
+              ),
             ),
           ],
         );
@@ -73,7 +110,9 @@ class QuickModeSelector extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? AppColors.primaryCyan
-                : (isDark ? AppColors.darkCardBorder : AppColors.lightCardBorder),
+                : (isDark
+                      ? AppColors.darkCardBorder
+                      : AppColors.lightCardBorder),
             width: isSelected ? 1.8 : 1,
           ),
         ),
@@ -88,7 +127,9 @@ class QuickModeSelector extends StatelessWidget {
                   size: 20,
                   color: isSelected
                       ? AppColors.primaryCyan
-                      : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                      : (isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -96,17 +137,25 @@ class QuickModeSelector extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
                       color: isSelected
                           ? (isDark ? Colors.white : const Color(0xFF0369A1))
-                          : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
+                          : (isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.lightTextPrimary),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (isSelected)
-                  const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.primaryCyan),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: AppColors.primaryCyan,
+                  ),
               ],
             ),
             const SizedBox(height: 6),
@@ -114,7 +163,9 @@ class QuickModeSelector extends StatelessWidget {
               description,
               style: TextStyle(
                 fontSize: 11,
-                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                color: isDark
+                    ? AppColors.darkTextMuted
+                    : AppColors.lightTextMuted,
                 height: 1.25,
               ),
               maxLines: 2,

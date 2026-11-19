@@ -1,6 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/services.dart';
 
 class ManagedProcess {
@@ -51,7 +52,8 @@ class ProcessRunner {
       '${File(Platform.resolvedExecutable).parent.path}\\$exeName',
       '${File(Platform.resolvedExecutable).parent.path}\\data\\flutter_assets\\assets\\bin\\$exeName',
       // 5. Local AppData cache directory
-      if (Platform.isWindows && Platform.environment.containsKey('LOCALAPPDATA'))
+      if (Platform.isWindows &&
+          Platform.environment.containsKey('LOCALAPPDATA'))
         '${Platform.environment['LOCALAPPDATA']}\\WebRTC-Gateway\\bin\\$exeName',
     ];
 
@@ -65,7 +67,10 @@ class ProcessRunner {
   }
 
   /// Ensures the binary exists. If not found on disk, auto-extracts it from Flutter bundled assets.
-  static Future<String?> ensureBinary(String binaryName, {String? customPath}) async {
+  static Future<String?> ensureBinary(
+    String binaryName, {
+    String? customPath,
+  }) async {
     final existing = findBinary(binaryName, customPath: customPath);
     if (existing != null) {
       return existing;
@@ -80,8 +85,10 @@ class ProcessRunner {
 
       // Determine extraction target
       String targetDir;
-      if (Platform.isWindows && Platform.environment.containsKey('LOCALAPPDATA')) {
-        targetDir = '${Platform.environment['LOCALAPPDATA']}\\WebRTC-Gateway\\bin';
+      if (Platform.isWindows &&
+          Platform.environment.containsKey('LOCALAPPDATA')) {
+        targetDir =
+            '${Platform.environment['LOCALAPPDATA']}\\WebRTC-Gateway\\bin';
       } else {
         targetDir = '${Directory.systemTemp.path}/WebRTC-Gateway/bin';
       }
@@ -92,7 +99,10 @@ class ProcessRunner {
       }
 
       final targetFile = File('$targetDir/$exeName');
-      final buffer = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      final buffer = byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      );
       await targetFile.writeAsBytes(buffer, flush: true);
 
       if (targetFile.existsSync()) {

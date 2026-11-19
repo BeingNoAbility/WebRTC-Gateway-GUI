@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/models/agent_instance.dart';
 
@@ -11,7 +12,8 @@ class StatusIndicatorBadge extends StatefulWidget {
   State<StatusIndicatorBadge> createState() => _StatusIndicatorBadgeState();
 }
 
-class _StatusIndicatorBadgeState extends State<StatusIndicatorBadge> with SingleTickerProviderStateMixin {
+class _StatusIndicatorBadgeState extends State<StatusIndicatorBadge>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
 
@@ -51,7 +53,9 @@ class _StatusIndicatorBadgeState extends State<StatusIndicatorBadge> with Single
   @override
   Widget build(BuildContext context) {
     final color = _getStatusColor();
-    final isPulsing = widget.status == AgentStatus.online || widget.status == AgentStatus.starting;
+    final isPulsing =
+        widget.status == AgentStatus.online ||
+        widget.status == AgentStatus.starting;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

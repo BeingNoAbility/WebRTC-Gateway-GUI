@@ -1,7 +1,9 @@
-﻿import 'dart:io';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../providers/agent_provider.dart';
@@ -110,12 +112,16 @@ class _HomeShellState extends State<HomeShell> {
                             color: Colors.black.withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.primaryCyan.withValues(alpha: 0.3),
+                              color: AppColors.primaryCyan.withValues(
+                                alpha: 0.3,
+                              ),
                               width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primaryCyan.withValues(alpha: 0.25),
+                                color: AppColors.primaryCyan.withValues(
+                                  alpha: 0.25,
+                                ),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -149,16 +155,23 @@ class _HomeShellState extends State<HomeShell> {
                             IconButton(
                               tooltip: isDark ? '切换至亮色模式' : '切换至暗黑模式',
                               icon: Icon(
-                                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                                isDark
+                                    ? Icons.light_mode_rounded
+                                    : Icons.dark_mode_rounded,
                                 size: 20,
                               ),
                               onPressed: () => settingsProvider.toggleTheme(),
                             ),
                             const SizedBox(height: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                color: isDark
+                                    ? const Color(0xFF1E293B)
+                                    : const Color(0xFFE2E8F0),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -166,7 +179,9 @@ class _HomeShellState extends State<HomeShell> {
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
-                                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                                  color: isDark
+                                      ? AppColors.darkTextMuted
+                                      : AppColors.lightTextMuted,
                                 ),
                               ),
                             ),
@@ -186,10 +201,14 @@ class _HomeShellState extends State<HomeShell> {
                         height: 52,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                          color: isDark
+                              ? AppColors.darkSurface
+                              : AppColors.lightSurface,
                           border: Border(
                             bottom: BorderSide(
-                              color: isDark ? AppColors.darkCardBorder : AppColors.lightCardBorder,
+                              color: isDark
+                                  ? AppColors.darkCardBorder
+                                  : AppColors.lightCardBorder,
                             ),
                           ),
                         ),
@@ -206,22 +225,37 @@ class _HomeShellState extends State<HomeShell> {
                             StatusIndicatorBadge(status: agentProvider.status),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryCyan.withValues(alpha: 0.08),
+                                color: AppColors.primaryCyan.withValues(
+                                  alpha: 0.08,
+                                ),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: AppColors.primaryCyan.withValues(alpha: 0.2)),
+                                border: Border.all(
+                                  color: AppColors.primaryCyan.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.shield_outlined, size: 14, color: AppColors.primaryCyan),
+                                  const Icon(
+                                    Icons.shield_outlined,
+                                    size: 14,
+                                    color: AppColors.primaryCyan,
+                                  ),
                                   const SizedBox(width: 5),
                                   Text(
                                     'DTLS 1.2 / SRTP 端到端加密直连',
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? AppColors.primaryCyan : AppColors.primaryCyanDark,
+                                      color: isDark
+                                          ? AppColors.primaryCyan
+                                          : AppColors.primaryCyanDark,
                                     ),
                                   ),
                                 ],
@@ -269,7 +303,10 @@ class _HomeShellState extends State<HomeShell> {
                   Expanded(
                     child: Text(
                       _getTitleForIndex(_currentIndex),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -279,16 +316,16 @@ class _HomeShellState extends State<HomeShell> {
                 StatusIndicatorBadge(status: agentProvider.status),
                 const SizedBox(width: 6),
                 IconButton(
-                  icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 20),
+                  icon: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    size: 20,
+                  ),
                   onPressed: () => settingsProvider.toggleTheme(),
                 ),
                 const SizedBox(width: 8),
               ],
             ),
-            body: IndexedStack(
-              index: _currentIndex,
-              children: screens,
-            ),
+            body: IndexedStack(index: _currentIndex, children: screens),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _currentIndex,
               onDestinationSelected: _navigateToIndex,

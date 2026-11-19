@@ -1,7 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+
 import '../core/models/agent_config.dart';
 import '../core/models/agent_metrics.dart';
 import '../core/models/log_entry.dart';
@@ -40,7 +42,8 @@ class AgentService extends ChangeNotifier {
   String? _customBinaryPath;
 
   AgentStatus get status => _status;
-  bool get isRunning => _status == AgentStatus.online || _status == AgentStatus.starting;
+  bool get isRunning =>
+      _status == AgentStatus.online || _status == AgentStatus.starting;
   String? get errorMessage => _errorMessage;
   AgentMetrics get metrics => _metrics;
   List<LogEntry> get logs => List.unmodifiable(_logs);
@@ -51,12 +54,12 @@ class AgentService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addLog(String message, {LogLevel level = LogLevel.info, LogSource source = LogSource.agent}) {
-    _logs.add(LogEntry(
-      level: level,
-      source: source,
-      message: message,
-    ));
+  void addLog(
+    String message, {
+    LogLevel level = LogLevel.info,
+    LogSource source = LogSource.agent,
+  }) {
+    _logs.add(LogEntry(level: level, source: source, message: message));
     if (_logs.length > 1000) {
       _logs.removeRange(0, 100);
     }
@@ -75,20 +78,35 @@ class AgentService extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    addLog('准备启动 WebRTC Gateway Agent (Node: ${config.nodeId})...', level: LogLevel.info, source: LogSource.system);
+    addLog(
+      '准备启动 WebRTC Gateway Agent (Node: ${config.nodeId})...',
+      level: LogLevel.info,
+      source: LogSource.system,
+    );
 
     if (Platform.isWindows) {
-      final binary = ProcessRunner.findBinary('agent', customPath: _customBinaryPath);
+      final binary = ProcessRunner.findBinary(
+        'agent',
+        customPath: _customBinaryPath,
+      );
       if (binary == null) {
         _status = AgentStatus.error;
         _errorMessage = '未找到 agent.exe 二进制文件，请确认放置于 assets/bin 或设置自定义路径';
-        addLog('错误: $_errorMessage', level: LogLevel.error, source: LogSource.system);
+        addLog(
+          '错误: $_errorMessage',
+          level: LogLevel.error,
+          source: LogSource.system,
+        );
         notifyListeners();
         return false;
       }
 
       final args = config.toCliArgs();
-      addLog('执行命令: $binary ${args.join(" ")}', level: LogLevel.debug, source: LogSource.system);
+      addLog(
+        '执行命令: $binary ${args.join(" ")}',
+        level: LogLevel.debug,
+        source: LogSource.system,
+      );
 
       try {
         _process = await ProcessRunner.start(
@@ -108,7 +126,11 @@ class AgentService extends ChangeNotifier {
         await Future.delayed(const Duration(milliseconds: 600));
         if (_status == AgentStatus.starting) {
           _status = AgentStatus.online;
-          addLog('Agent 进程已成功创建 (PID: ${_process!.pid})', level: LogLevel.success, source: LogSource.system);
+          addLog(
+            'Agent 进程已成功创建 (PID: ${_process!.pid})',
+            level: LogLevel.success,
+            source: LogSource.system,
+          );
           notifyListeners();
         }
 
@@ -124,7 +146,11 @@ class AgentService extends ChangeNotifier {
     } else {
       await Future.delayed(const Duration(milliseconds: 500));
       _status = AgentStatus.online;
-      addLog('Android 环境：Agent 控制器已连接就绪 (Node: ${config.nodeId})', level: LogLevel.success, source: LogSource.system);
+      addLog(
+        'Android 环境：Agent 控制器已连接就绪 (Node: ${config.nodeId})',
+        level: LogLevel.success,
+        source: LogSource.system,
+      );
       _startMetricsPolling(config.metricsAddr);
       notifyListeners();
       return true;
@@ -142,14 +168,19 @@ class AgentService extends ChangeNotifier {
     if (lower.contains('fatal') || lower.contains('failed to init')) {
       _status = AgentStatus.error;
       _errorMessage = line;
-    } else if (lower.contains('connected') || lower.contains('webrtc gateway agent')) {
+    } else if (lower.contains('connected') ||
+        lower.contains('webrtc gateway agent')) {
       _status = AgentStatus.online;
     }
     notifyListeners();
   }
 
   void _handleProcessExit(int code) {
-    addLog('Agent 进程退出 (退出码: $code)', level: code == 0 ? LogLevel.info : LogLevel.warning, source: LogSource.system);
+    addLog(
+      'Agent 进程退出 (退出码: $code)',
+      level: code == 0 ? LogLevel.info : LogLevel.warning,
+      source: LogSource.system,
+    );
     _metricsTimer?.cancel();
     _status = AgentStatus.stopped;
     _process = null;
@@ -170,7 +201,9 @@ class AgentService extends ChangeNotifier {
         return;
       }
       try {
-        final resp = await http.get(url).timeout(const Duration(milliseconds: 800));
+        final resp = await http
+            .get(url)
+            .timeout(const Duration(milliseconds: 800));
         if (resp.statusCode == 200) {
           _metrics = AgentMetrics.parsePrometheus(
             resp.body,
