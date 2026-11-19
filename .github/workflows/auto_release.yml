@@ -44,35 +44,55 @@ jobs:
           CUSTOM_TAG="${{ inputs.custom_tag }}"
           FORCE_BUILD="${{ inputs.force_build }}"
 
-          if [ -n "$CUSTOM_TAG" ]; then
-            echo "Fetching custom tag: $CUSTOM_TAG"
-            RELEASE_DATA=$(curl -s "https://api.github.com/repos/${UPSTREAM_REPO}/releases/tags/${CUSTOM_TAG}")
+          # 1. Determine target tag name
+          if [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.ref_name }}" ]; then
+            TAG_NAME="${{ github.ref_name }}"
+            REL_NAME="WebRTC Gateway GUI $TAG_NAME"
+            echo "Direct tag push event detected: using tag $TAG_NAME"
+          elif [ -n "$CUSTOM_TAG" ]; then
+            TAG_NAME="$CUSTOM_TAG"
+            REL_NAME="Release $CUSTOM_TAG"
+            echo "Manual custom tag input: using tag $TAG_NAME"
           else
-            echo "Fetching latest release from $UPSTREAM_REPO"
-            RELEASE_DATA=$(curl -s "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest")
+            echo "Checking upstream latest release for $UPSTREAM_REPO using gh CLI..."
+            TAG_NAME=$(gh api "repos/${UPSTREAM_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
+            REL_NAME=$(gh api "repos/${UPSTREAM_REPO}/releases/latest" --jq '.name' 2>/dev/null || true)
+
+            # Fallback to authenticated curl if gh api failed
+            if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
+              echo "Fallback to authenticated curl..."
+              RELEASE_DATA=$(curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest")
+              TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name // empty')
+              REL_NAME=$(echo "$RELEASE_DATA" | jq -r '.name // empty')
+            fi
           fi
 
-          TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name // empty')
-          REL_NAME=$(echo "$RELEASE_DATA" | jq -r '.name // empty')
-
-          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" == "null" ]; then
-            echo "Error: Could not retrieve release information from $UPSTREAM_REPO"
-            exit 1
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
+            echo "Warning: Could not detect upstream release, falling back to local version tag v2.3.2"
+            TAG_NAME="v2.3.2"
+            REL_NAME="v2.3.2 - WebRTC Gateway"
           fi
 
-          echo "Detected upstream release: $TAG_NAME ($REL_NAME)"
+          echo "Target Release Tag: $TAG_NAME"
+          echo "Target Release Name: $REL_NAME"
 
-          # Check if this repository already has a release for this tag
-          CURRENT_RELEASE=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json tagName -q .tagName 2>/dev/null || true)
-
-          if [ -n "$CURRENT_RELEASE" ] && [ "$FORCE_BUILD" != "true" ] && [ "${{ github.event_name }}" != "push" ]; then
-            echo "Release $TAG_NAME already exists in current repository. Skipping build."
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          else
-            echo "New upstream release detected or build forced: $TAG_NAME"
+          # 2. Check if this repository already has a release for this tag
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "Tag push event: will build and release $TAG_NAME"
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "upstream_tag=$TAG_NAME" >> $GITHUB_OUTPUT
             echo "release_name=$REL_NAME" >> $GITHUB_OUTPUT
+          else
+            CURRENT_RELEASE=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json tagName -q .tagName 2>/dev/null || true)
+            if [ -n "$CURRENT_RELEASE" ] && [ "$FORCE_BUILD" != "true" ]; then
+              echo "Release $TAG_NAME already exists in ${{ github.repository }}. Skipping build."
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "New release detected or force_build=true: $TAG_NAME"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+              echo "upstream_tag=$TAG_NAME" >> $GITHUB_OUTPUT
+              echo "release_name=$REL_NAME" >> $GITHUB_OUTPUT
+            fi
           fi
 
   build-windows:
@@ -100,20 +120,38 @@ jobs:
         run: flutter config --enable-windows-desktop
 
       - name: Install go-winres
-        run: go install github.com/tc-hib/go-winres@latest
+        run: |
+          go install github.com/tc-hib/go-winres@latest
+          $gopath = go env GOPATH
+          echo "$gopath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Download Upstream WebRTC-Gateway Binaries
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UPSTREAM_TAG: ${{ needs.check-upstream.outputs.upstream_tag }}
         run: |
           $tag = $env:UPSTREAM_TAG
-          $zipUrl = "https://github.com/BeingNoAbility/WebRTC-Gateway/releases/download/$tag/webrtc-gateway_${tag}_windows_amd64.zip"
-          Write-Host "Downloading upstream kernel from: $zipUrl"
-          
           New-Item -ItemType Directory -Force -Path temp_download | Out-Null
-          Invoke-WebRequest -Uri $zipUrl -OutFile temp_download\upstream.zip
-          Expand-Archive -Path temp_download\upstream.zip -DestinationPath temp_download\extracted -Force
+          Write-Host "Downloading upstream kernel for tag $tag..."
           
+          $downloaded = $false
+          try {
+            gh release download $tag --repo "BeingNoAbility/WebRTC-Gateway" --pattern "*windows_amd64.zip" --dir temp_download
+            $zipFile = Get-ChildItem temp_download\*windows_amd64.zip | Select-Object -First 1
+            if ($zipFile) {
+              Copy-Item $zipFile.FullName temp_download\upstream.zip -Force
+              $downloaded = $true
+            }
+          } catch {
+            Write-Host "gh download fallback to Invoke-WebRequest: $_"
+          }
+
+          if (-not $downloaded) {
+            $zipUrl = "https://github.com/BeingNoAbility/WebRTC-Gateway/releases/download/$tag/webrtc-gateway_${tag}_windows_amd64.zip"
+            Invoke-WebRequest -Uri $zipUrl -OutFile temp_download\upstream.zip
+          }
+
+          Expand-Archive -Path temp_download\upstream.zip -DestinationPath temp_download\extracted -Force
           New-Item -ItemType Directory -Force -Path assets\bin | Out-Null
           Copy-Item -Path temp_download\extracted\agent.exe -Destination assets\bin\agent.exe -Force
           Copy-Item -Path temp_download\extracted\signal.exe -Destination assets\bin\signal.exe -Force

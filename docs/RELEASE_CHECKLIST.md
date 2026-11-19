@@ -1,8 +1,8 @@
 # WebRTC Gateway GUI 正式发版核对清单 (Official Release Checklist)
 
-> **目标与规范说明**：  
-> 本清单是 WebRTC Gateway Manager (GUI) 跨平台客户端每次发布新版本（正式版 / 次版本 / 补丁热修复版）的**强制工程门禁**。  
-> 涵盖 **Windows 桌面端** 与 **Android 移动端**，所有发版流程必须严格按顺序执行并逐项确认，确保**零回归、零布局溢出、零孤儿进程泄漏、零破坏性变更**。
+> **目标与工程定性**：  
+> 本清单是 `WebRTC-Gateway-GUI` 跨平台客户端项目（Windows 桌面端 & Android 移动端）每次发布新版本（正式版 / 次版本 / 补丁热修复版）的**强制工程门禁**。  
+> 本规范不罗列任何特定开发者的临时调试路径，而是立足于本项目的**全局根本架构与关键质量不变量**：包括上游 Go 原生内核同步、Windows 子进程生命周期守护、安卓移动端纯客户端响应式视口、HMAC-SHA256 纯数学时效鉴权对齐、单文件 PE 防杀软误报防线与 GitHub Actions 自动化发行。所有流程必须严格按顺序执行并逐项确认。
 
 ---
 
@@ -10,217 +10,137 @@
 
 ```mermaid
 flowchart TD
-    Phase1["阶段一：跨平台代码与版本号对齐<br/>(Version & Code Alignment)"] --> Phase2["阶段二：全量静态类型与门禁<br/>(Typecheck & Code Gate)"]
-    Phase2 --> Phase3["阶段三：自动化测试矩阵与跨端验证<br/>(Unit Tests & Responsive Checks)"]
-    Phase3 --> Phase4["阶段四：跨平台打包与加固预审<br/>(Packaging & PE/APK Hardening)"]
-    Phase4 --> Phase5["阶段五：文档与发布说明审计<br/>(Release Notes & Docs Audit)"]
-    Phase5 --> Phase6["阶段六：Git 工作流与标签发布<br/>(Git Release Flow & Tagging)"]
-    Phase6 --> Phase7["阶段七：发布后流水线与制品验收<br/>(Post-Release CI/CD Verification)"]
+    Phase1["阶段一：内核同步与多端版本对齐<br/>(Kernel Sync & Version Alignment)"] --> Phase2["阶段二：静态分析与代码卫生门禁<br/>(Analyze & Code Formatting)"]
+    Phase2 --> Phase3["阶段三：密码学与响应式测试矩阵<br/>(Crypto & 320px Viewport Tests)"]
+    Phase3 --> Phase4["阶段四：PE 资源注入与防误报加固<br/>(WinRes Stamping & AV Defense)"]
+    Phase4 --> Phase5["阶段五：文档纯净度与脱敏审计<br/>(Docs Hygiene & Anonymization)"]
+    Phase5 --> Phase6["阶段六：Git 工作流与标签触发<br/>(Git Release Flow & Tagging)"]
+    Phase6 --> Phase7["阶段七：流水线产物与校验和验收<br/>(CI/CD Verification & SHA-256)"]
 ```
 
 ---
 
-## 发版总则与版本语义规范 (Versioning Policy)
+## 阶段一：内核同步与多端版本对齐 (Kernel Sync & Version Alignment)
 
-项目严格遵循 [Semantic Versioning 2.0.0 (SemVer)](https://semver.org/) 规范，版本号格式统一为 `vMAJOR.MINOR.PATCH`（例如 `v2.3.2`），并且**原则上与源项目 [WebRTC-Gateway](https://github.com/BeingNoAbility/WebRTC-Gateway) 内核主版本严格保持对齐**。
+- [ ] **1.1 上游 WebRTC-Gateway 原生内核版本一致性**
+  - **根本追问**：GUI 内置打包的 `agent.exe` 与 `signal.exe` 是否与目标发版版本（如 `v2.3.2`）完全一致？
+  - **核验路径**：`assets/bin/agent.exe` 与 `assets/bin/signal.exe`。
+  - **验证命令**：
+    ```powershell
+    assets\bin\agent.exe -v
+    assets\bin\signal.exe -v
+    ```
+  - **预期输出**：输出必须包含对应的上游语义化版本号，如 `WebRTC Gateway Agent v2.3.2` 与 `WebRTC Gateway Signal v2.3.2`。
 
-### 1. 版本号跃迁判定矩阵 (Version Increment Matrix)
+- [ ] **1.2 Flutter 工程语义化版本对齐**
+  - **位置**：[pubspec.yaml](file:///c:/Users/Star/Downloads/WebRTC-Gateway-GUI/pubspec.yaml) 中的 `version` 字段。
+  - **操作**：将版本号订正为 `MAJOR.MINOR.PATCH+BUILD`（例如 `2.3.2+1`）。
+  - **验证**：运行 `flutter pub get`，确保 `pubspec.lock` 处于最新状态且无版本冲突。
 
-| 版本类型 | 版本位 | 触发条件与变更范式 | 向后兼容性要求 | 门禁与验证要求 |
-| :--- | :---: | :--- | :--- | :--- |
-| **主版本 (Major)** | `vX+1.0.0` | UI 架构彻底重构、本地数据存储协议不兼容、通信与鉴权内核破坏性重写。 | 允许旧配置迁移或重置，但必须在 `docs/RELEASE_NOTES.md` 中给出明确的升级说明。 | **双平台全量真机实测**（Windows 10/11 + Android 7.0~15 各种主流异形屏/折叠屏全量跑满）。 |
-| **次版本 (Minor)** | `vX.Y+1.0` | 新增核心功能模块（如新穿透模式、托盘快捷操作、新诊断工具箱）、UI 主题扩展。 | **严格向下兼容**既有配置文件、收藏夹与 YAML 规则；旧版本配置必须平滑无感升级。 | **针对性真机与异形屏抽样测试**（针对变更界面的宽窄屏与暗黑模式重点核验）。 |
-| **补丁版本 (Patch)** | `vX.Y.Z+1` | 界面斑马线溢出修复、托盘图标生命周期自愈、进程守护健壮性修复、样式与文档微调。 | **严格 100% 向下兼容**；零数据模型与功能破坏。 | **本地自动化测试 (`flutter test`) + 静态代码检查 (`flutter analyze`)** 快速交付。 |
+- [ ] **1.3 Windows PE 元数据与资源定义对齐**
+  - **位置**：[winres/winres.json](file:///c:/Users/Star/Downloads/WebRTC-Gateway-GUI/winres/winres.json) 与 [tools/standalone_packer/main.go](file:///c:/Users/Star/Downloads/WebRTC-Gateway-GUI/tools/standalone_packer/main.go)。
+  - **核验项**：
+    - `winres.json` 中的 `file_version` 与 `product_version` 必须与发版版本一致（如 `2.3.2.0`）；
+    - `standalone_packer` 中的启动器版本常量 `appVersion` 与 `go-winres` 参数必须同步对齐；
+    - 应用程序图标 `windows/runner/resources/app_icon.ico` 必须与源项目 Logo 100% 保持一致。
 
 ---
 
-## 阶段一：跨平台代码与版本号对齐 (Version & Code Alignment)
+## 阶段二：静态分析与代码卫生门禁 (Analyze & Code Formatting)
 
-- [ ] **1.1 Flutter 核心版本变量对齐**
-  - **位置**：[pubspec.yaml](file:///pubspec.yaml) 中的 `version: X.Y.Z+1`
-  - **操作**：对齐版本字符串为本次发版版本（如 `2.3.2+1`）。
-  - **验证命令**：`flutter pub get`
-  - **判定标准**：解析成功，依赖树锁定文件 `pubspec.lock` 正常刷新。
-
-- [ ] **1.2 Windows PE 资源版本元数据对齐**
-  - **位置**：[winres/winres.json](file:///winres/winres.json) 中的 `FileVersion` 与 `ProductVersion`
-  - **操作**：将 Windows PE 文件版本更新为目标版本（如 `2.3.2.0`）。
-  - **判定标准**：编译后的 exe 文件右键属性「详细信息」中正确显示产品名称与版本。
-
-- [ ] **1.3 Windows 单文件引导器版本对齐**
-  - **位置**：[tools/standalone_packer/main.go](file:///tools/standalone_packer/main.go)
-  - **操作**：确认默认 fallback 版本与解压路径 `app_vX.Y.Z` 逻辑正常支持动态环境变量读取。
-
-- [ ] **1.4 嵌入原生内核版本一致性断言**
-  - **位置**：`assets/bin/agent.exe` 与 `assets/bin/signal.exe`
-  - **核对项**：预置的 Go 二进制文件必须与当前目标发版内核版本严格对齐。
-  - **验证命令**：
-    ```powershell
-    .\assets\bin\agent.exe -v
-    .\assets\bin\signal.exe -v
+- [ ] **2.1 全量 Dart 规范代码格式化**
+  - **操作**：对 `lib/` 生产源码与 `test/` 测试用例执行官方标准格式化：
+    ```bash
+    dart format --set-exit-if-changed lib test
     ```
-  - **判定标准**：输出版本号必须与目标版本一致。
+  - **合格判定**：命令退出码为 `0`，没有任何未格式化或排版异常的文件。
 
-- [ ] **1.5 敏感信息与本地个人路径绝对零残留断言 (Zero Private Data)**
-  - **核对项**：确保工程源码、配置、注释与历史中绝无本地绝对路径（如 `Users\Star`、`C:\flutter` 等）、真实私有 IP/域名或测试凭据。
-  - **验证命令**：
-    ```powershell
-    Get-ChildItem -Path lib, test, tools, windows\runner, android\app\src -Recurse -File | Select-String "Users\\"
-    ```
-  - **判定标准**：输出必须为空。
-
----
-
-## 阶段二：全量静态类型与门禁 (Typecheck & Linters)
-
-- [ ] **2.1 Flutter 官方静态代码分析**
-  - **验证命令**：
+- [ ] **2.2 静态代码零警告门禁**
+  - **操作**：执行 Flutter 静态代码深度分析：
     ```bash
     flutter analyze --no-fatal-infos
     ```
-  - **判定标准**：必须以退出码 `0` 完成，**零编译错误 (0 errors)、零致命警告 (0 warnings)**。
+  - **合格判定**：输出必须为 `No issues found!`，严禁遗留任何 `Error` 或致命 `Warning`。
 
-- [ ] **2.2 Dart 统一代码格式化**
-  - **验证命令**：
-    ```bash
-    dart format --output=none --set-exit-if-changed lib test
-    ```
-  - **判定标准**：全量代码必须严格符合 Dart 官方排版规范，退出码为 `0`。
+---
 
-- [ ] **2.3 Android Gradle 与构建清单健全性**
-  - **位置**：[android/gradlew](file:///android/gradlew)、[android/gradle/wrapper/gradle-wrapper.jar](file:///android/gradle/wrapper/gradle-wrapper.jar)
+## 阶段三：密码学与响应式测试矩阵 (Crypto & 320px Viewport Tests)
+
+- [ ] **3.1 HMAC-SHA256 纯数学时效签名一致性验证**
+  - **根本追问**：Dart 端生成的无状态安全访问链接是否能与上游 Go 服务端 100% 字节级握手成功？
   - **核对项**：
-    - 确认 `android/gradlew` 必须被 Git 纳入追踪且具备可执行权限（`100755`）；
-    - 确认 `gradle-wrapper.jar` 绝不被 `.gitignore` 误杀，确保 Linux CI 环境能够正常引导 Gradle。
+    - 签名载荷格式必须严格为 `nodeId:expiry_timestamp:accessSecret`；
+    - 签名结果必须为标准 Hex 字符串；
+    - 凭据参数必须附加在 URL Hash Fragment（`#nodeId?exp=...&sign=...`）之后，绝不允许放在 Query 参数中。
+  - **验证命令**：`flutter test test/webrtc_gateway_test.dart`。
 
-- [ ] **2.4 Windows CMake 与 Runner 配置健全性**
-  - **位置**：`windows/CMakeLists.txt`、`windows/runner/resources/app_icon.ico`
-  - **核对项**：C++ Runner 构建配置完备，官方图标资源有效存在。
+- [ ] **3.2 Prometheus HUD 监控指标文本流解析测试**
+  - **核对项**：验证对上游 Agent `/metrics` 接口输出的标准 Prometheus 格式（接收/发送字节数、活跃连接数、数据流数）能正确解析并换算为实时速率。
+
+- [ ] **3.3 移动端 320px 极窄视口零像素溢出断言 (Invariant 2.1)**
+  - **根本追问**：在折叠屏外屏或极端窄屏设备（320px ~ 360px 宽度）下，界面是否彻底消灭黄色斑马线（`RenderFlex overflowed`）？
+  - **验证命令**：`flutter test test/responsive_layout_test.dart`。
+  - **合格判定**：测试通过，无任何 `FlutterError` 或像素溢出异常。
 
 ---
 
-## 阶段三：自动化测试矩阵与跨端验证 (Tests & Cross-Platform)
+## 阶段四：PE 资源注入与防误报加固 (WinRes Stamping & AV Defense)
 
-- [ ] **3.1 Flutter 全量自动化测试套件**
-  - **验证命令**：
+- [ ] **4.1 单文件启动器运行时释放路径规范**
+  - **核心戒律**：单文件打包器解压路径**严禁设在 `%TEMP%` 目录下**！`%TEMP%` 是 Windows Defender 启发式木马扫描的高敏诱发区域。
+  - **规范路径**：必须统一定位在 `%LOCALAPPDATA%\WebRTC-Gateway-Manager\app_<version>\`，遵从标准 Windows 应用安装与缓存规范。
+
+- [ ] **4.2 双通道分发策略核验**
+  - 检查 CI/CD 是否同时产出两套 Windows 制品：
+    1. **单文件版 (`WebRTC-Gateway-Manager-Standalone-*.exe`)**：内嵌完整运行时，双击直开，免安装。
+    2. **绿色便携版 (`WebRTC-Gateway-Manager-*-windows-x64-green.zip`)**：解压即用，零动态释放行为，作为严苛安全环境的 100% 防误报底线。
+
+---
+
+## 阶段五：文档纯净度与脱敏审计 (Docs Hygiene & Anonymization)
+
+- [ ] **5.1 零私有信息与绝对路径脱敏红线**
+  - **根本追问**：代码、示例配置、文档与提交历史中是否混入了任何开发者的私人用户目录（如绝对路径）、真实测试域名或私有 IP？
+  - **排查命令**：
     ```bash
-    flutter test
+    git grep -i "Users\\\\"
+    git grep -i "192.168."
     ```
-  - **判定标准**：覆盖 HMAC-SHA256 签名、时效链接解析、CLI 参数生成、Prometheus 指标解析与多实例生命周期等全部测试用例 **100% 通过 (10/10 Passed)**。
+  - **合格判定**：除标准测试占位符（`127.0.0.1`、`example.com`）外，检索结果必须全空。
 
-- [ ] **3.2 HMAC-SHA256 跨语言与跨平台签名一致性核验**
-  - **核对项**：Dart 计算的带时效分享直连签名，必须与 Go 原生内核的 `crypto/hmac` 计算结果完全一致，绝不允许因编码或大小写差异导致访客打不开网页。
-
-- [ ] **3.3 零溢出与全屏自适应布局核验 (Zero Pixel Overflow Invariant)**
-  - **核对项**：
-    - 在 360px ~ 480px 宽度手机视口下，各模块（穿透端、访客中心、信令端、诊断箱、日志台）绝不出现黄色斑马线溢出；
-    - 在宽屏桌面（>= 800px）下，左侧 `NavigationRail` 与顶栏 HUD 流畅自适应展开；
-    - 暗黑模式（Dark）与明亮模式（Light）对比度清晰，无文字隐形问题。
+- [ ] **5.2 发布说明 (Release Notes) 纯净度**
+  - **位置**：[docs/RELEASE_NOTES.md](file:///c:/Users/Star/Downloads/WebRTC-Gateway-GUI/docs/RELEASE_NOTES.md)。
+  - **规范要求**：作为 GitHub Release 的发布正文，**仅且只能包含当前最新版本的核心更新说明**，严禁在文档中残留历史版本混杂（所有历史变更统一沉淀在 [CHANGELOG.md](file:///c:/Users/Star/Downloads/WebRTC-Gateway-GUI/CHANGELOG.md)）。
 
 ---
 
-## 阶段四：跨平台打包与加固预审 (Packaging & Hardening)
+## 阶段六：Git 工作流与标签触发 (Git Release Flow & Tagging)
 
-- [ ] **4.1 Windows 独立单文件版 (Standalone .exe) 冒烟预审**
-  - **打包命令**：
-    ```powershell
-    flutter build windows --release
-    go run tools/standalone_packer/main.go
-    ```
-  - **核对项**：
-    - 生成文件 `WebRTC-Gateway-Manager-Standalone.exe`；
-    - 成功内嵌 Windows 清单（GUI 子系统，无黑框）；
-    - 成功嵌入源项目官方 Cyber Shield 盾牌图标（多分辨率 ico）；
-    - 成功应用 Authenticode 数字签名。
+- [ ] **6.1 Git 工作区 Cleanliness 验证**
+  - 运行 `git status`，确保所有生产改动、文档与测例均已暂存并提交，工作区干净无未跟踪垃圾文件。
 
-- [ ] **4.2 Windows 便携绿色版 (Portable Zip - 零误报) 校验**
-  - **打包命令**：
-    ```powershell
-    Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "WebRTC-Gateway-Manager-vX.Y.Z-windows-x64-green.zip" -Force
-    ```
-  - **核对项**：压缩包解压后直接双击 `webrtc_gateway_gui.exe` 即刻正常拉起并托盘常驻，100% 杜绝杀软拦截。
-
-- [ ] **4.3 Android 正式发布版 (Release APK) 优化与体积审计**
-  - **打包命令**：
+- [ ] **6.2 创建标准附注语义化标签**
+  - 创建符合 SemVer 的 Git 附注标签并推送到远端：
     ```bash
-    flutter build apk --release
-    ```
-  - **核对项**：
-    - 生成 `build/app/outputs/flutter-apk/app-release.apk`；
-    - 开启 R8 代码混淆与图标 Tree-shaking，体积必须严格控制在 **80MB** 以内；
-    - 具备正规发布签名，真机安装无报错。
-
-- [ ] **4.4 孤儿进程防御与生命周期闭环审计**
-  - **核对项**：在 Windows 任务管理器中测试：点击托盘「彻底退出程序」时，GUI 派生出的所有底层 `agent.exe` 与 `signal.exe` 子进程必须 100% 立即销毁退出，绝不允许留下孤儿进程继续监听端口。
-
----
-
-## 阶段五：文档与发布说明审计 (Release Notes & Docs Audit)
-
-- [ ] **5.1 docs/RELEASE_NOTES.md 单版本高信噪比规范**
-  - **位置**：[docs/RELEASE_NOTES.md](file:///docs/RELEASE_NOTES.md)
-  - **单版本不变量**：始终只维护**当前最新单一版本**，严禁累加历史版本。
-  - **篇幅与结构红线**：
-    - 控制在 **20 ~ 30 行** 极简高信噪比篇幅；
-    - 包含：版本与日期、核心更新与修复、破坏性变更声明、下载制品说明与上游链接。
-
-- [ ] **5.2 CHANGELOG.md 历史版本累积归档**
-  - **位置**：[CHANGELOG.md](file:///CHANGELOG.md)
-  - **核对项**：顶部追加新版本条目，按 `Added` / `Changed` / `Fixed` / `Security` 归档。
-
-- [ ] **5.3 主文档与配置说明对齐**
-  - **位置**：[README.md](file:///README.md)
-  - **核对项**：徽章链接、最新版本号、托盘使用方法与多 Agent 集群说明与实际代码一致。
-
----
-
-## 阶段六：Git 工作流与标签发布 (Git Release Flow & Tagging)
-
-- [ ] **6.1 工作区整洁度绝对断言**
-  - **验证命令**：
-    ```bash
-    git status --porcelain
-    ```
-  - **判定标准**：输出必须完全为空（`nothing to commit, working tree clean`）。
-
-- [ ] **6.2 创建语义化 Git 附注标签 (Annotated Tag)**
-  - **打标命令**：
-    ```bash
-    git tag -a vX.Y.Z -m "Release vX.Y.Z: <版本简要说明>"
-    ```
-
-- [ ] **6.3 推送主分支与标签触发 GitHub Actions**
-  - **推送命令**：
-    ```bash
-    git push origin main --tags
+    git tag -a v2.3.2 -m "Release v2.3.2: Modern Cross-Platform GUI for WebRTC-Gateway"
+    git push origin v2.3.2
     ```
 
 ---
 
-## 阶段七：发布后流水线与制品验收 (Post-Release Verification)
+## 阶段七：发布后流水线与制品验收 (Post-Release CI/CD Verification)
 
-- [ ] **7.1 自动发布流水线验收 (`auto_release.yml`)**
-  - 打开 GitHub 仓库 Actions 页面，确认 `Auto Sync & Release GUI` 的 4 大 Job 全绿通过：
-    1. `Check Upstream WebRTC-Gateway Release` (PASS)
-    2. `Build Windows Desktop (Standalone & Green Zip)` (PASS)
-    3. `Build Android APK` (PASS)
-    4. `Publish GitHub Release` (PASS)
+- [ ] **7.1 GitHub Actions 全端自动化构建验收**
+  - 访问 GitHub Actions 控制台，验证工作流 `Auto Sync & Release GUI` 的所有任务成功完成：
+    - `Check Upstream WebRTC-Gateway Release` (绿灯通过)
+    - `Build Windows Desktop (Standalone & Green Zip)` (绿灯通过)
+    - `Build Android APK` (绿灯通过)
+    - `Publish GitHub Release` (绿灯通过)
 
-- [ ] **7.2 GitHub Releases 页面产物与哈希核验**
-  - 确认 GitHub Releases 对应标签下挂载全部 4 个产物：
-    - `WebRTC-Gateway-Manager-Standalone-vX.Y.Z.exe`
-    - `WebRTC-Gateway-Manager-vX.Y.Z-windows-x64-green.zip`
-    - `WebRTC-Gateway-Manager-vX.Y.Z-android.apk`
-    - `SHA256SUMS.txt`
-
-- [ ] **7.3 线上制品下载安装冒烟抽检**
-  - 下载 Release 中的 Windows 单文件与 Android APK，在真实设备上双击打开/安装运行，确认托盘正常、各页面零溢出、Agent 启动成功。
-
----
-
-## 应急回滚流程 (Emergency Rollback Playbook)
-
-如果在发版后发现重大致命缺陷：
-1. **撤回远程 Git Tag**：`git push origin :refs/tags/vX.Y.Z` 并删除本地标签；
-2. **在 GitHub Releases 界面下架或删除有问题的 Release**；
-3. **在主分支排查修复、补齐测试并重新打标发布**。
+- [ ] **7.2 资产完整性与 SHA-256 校验**
+  - 打开对应的 GitHub Release 页面，确认以下发布资产齐全可用：
+    1. `WebRTC-Gateway-Manager-Standalone-vX.Y.Z.exe`
+    2. `WebRTC-Gateway-Manager-vX.Y.Z-windows-x64-green.zip`
+    3. `WebRTC-Gateway-Manager-vX.Y.Z-android.apk`
+    4. `SHA256SUMS.txt`
+  - 下载验证 SHA-256 哈希值与本地构建产物一致无误。
