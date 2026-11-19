@@ -1,0 +1,51 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0000": "APP_0000.ico"
+    }
+  },
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {},
+        "description": "",
+        "minimum-os": "win7",
+        "execution-level": "",
+        "ui-access": false,
+        "auto-elevate": false,
+        "dpi-awareness": "system",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": false,
+        "ultra-high-resolution-scrolling-aware": false,
+        "long-path-aware": false,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": false,
+        "use-common-controls-v6": false
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0409": {
+        "info": {
+          "0409": {
+            "Comments": "WebRTC Gateway Manager GUI Client",
+            "CompanyName": "WebRTC Gateway Open Source Project",
+            "FileDescription": "WebRTC Gateway GUI Manager",
+            "FileVersion": "2.3.2.0",
+            "InternalName": "WebRTC-Gateway-Manager",
+            "LegalCopyright": "Apache License 2.0 / MIT",
+            "LegalTrademarks": "",
+            "OriginalFilename": "WebRTC-Gateway-Manager.exe",
+            "PrivateBuild": "",
+            "ProductName": "WebRTC Gateway Manager",
+            "ProductVersion": "2.3.2.0",
+            "SpecialBuild": ""
+          }
+        }
+      }
+    }
+  }
+}

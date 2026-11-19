@@ -1,0 +1,250 @@
+name: Auto Sync & Release GUI
+
+on:
+  schedule:
+    # Check upstream repository for new releases every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if release tag already exists'
+        required: false
+        type: boolean
+        default: false
+      custom_tag:
+        description: 'Custom upstream tag to sync (leave blank for latest upstream release)'
+        required: false
+        type: string
+        default: ''
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  check-upstream:
+    name: Check Upstream WebRTC-Gateway Release
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      upstream_tag: ${{ steps.check.outputs.upstream_tag }}
+      release_name: ${{ steps.check.outputs.release_name }}
+      release_notes: ${{ steps.check.outputs.release_notes }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fetch Latest Upstream Release Info
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_REPO="BeingNoAbility/WebRTC-Gateway"
+          CUSTOM_TAG="${{ inputs.custom_tag }}"
+          FORCE_BUILD="${{ inputs.force_build }}"
+
+          if [ -n "$CUSTOM_TAG" ]; then
+            echo "Fetching custom tag: $CUSTOM_TAG"
+            RELEASE_DATA=$(curl -s "https://api.github.com/repos/${UPSTREAM_REPO}/releases/tags/${CUSTOM_TAG}")
+          else
+            echo "Fetching latest release from $UPSTREAM_REPO"
+            RELEASE_DATA=$(curl -s "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest")
+          fi
+
+          TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name // empty')
+          REL_NAME=$(echo "$RELEASE_DATA" | jq -r '.name // empty')
+
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" == "null" ]; then
+            echo "Error: Could not retrieve release information from $UPSTREAM_REPO"
+            exit 1
+          fi
+
+          echo "Detected upstream release: $TAG_NAME ($REL_NAME)"
+
+          # Check if this repository already has a release for this tag
+          CURRENT_RELEASE=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json tagName -q .tagName 2>/dev/null || true)
+
+          if [ -n "$CURRENT_RELEASE" ] && [ "$FORCE_BUILD" != "true" ] && [ "${{ github.event_name }}" != "push" ]; then
+            echo "Release $TAG_NAME already exists in current repository. Skipping build."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New upstream release detected or build forced: $TAG_NAME"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "upstream_tag=$TAG_NAME" >> $GITHUB_OUTPUT
+            echo "release_name=$REL_NAME" >> $GITHUB_OUTPUT
+          fi
+
+  build-windows:
+    name: Build Windows Desktop (Standalone & Green Zip)
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@latest
+
+      - name: Download Upstream WebRTC-Gateway Binaries
+        env:
+          UPSTREAM_TAG: ${{ needs.check-upstream.outputs.upstream_tag }}
+        run: |
+          $tag = $env:UPSTREAM_TAG
+          $zipUrl = "https://github.com/BeingNoAbility/WebRTC-Gateway/releases/download/$tag/webrtc-gateway_${tag}_windows_amd64.zip"
+          Write-Host "Downloading upstream kernel from: $zipUrl"
+          
+          New-Item -ItemType Directory -Force -Path temp_download | Out-Null
+          Invoke-WebRequest -Uri $zipUrl -OutFile temp_download\upstream.zip
+          Expand-Archive -Path temp_download\upstream.zip -DestinationPath temp_download\extracted -Force
+          
+          New-Item -ItemType Directory -Force -Path assets\bin | Out-Null
+          Copy-Item -Path temp_download\extracted\agent.exe -Destination assets\bin\agent.exe -Force
+          Copy-Item -Path temp_download\extracted\signal.exe -Destination assets\bin\signal.exe -Force
+          Write-Host "Upstream kernel binaries placed into assets\bin\"
+
+      - name: Flutter Dependencies
+        run: flutter pub get
+
+      - name: Flutter Analyze
+        run: flutter analyze
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build Flutter Windows Release
+        run: flutter build windows --release
+
+      - name: Package Standalone Executable & Green Zip
+        env:
+          UPSTREAM_TAG: ${{ needs.check-upstream.outputs.upstream_tag }}
+        run: |
+          go run tools/standalone_packer/main.go
+          
+          # Rename artifacts with upstream tag
+          $tag = $env:UPSTREAM_TAG
+          Copy-Item "WebRTC-Gateway-Manager-Standalone.exe" "WebRTC-Gateway-Manager-Standalone-$tag.exe"
+          
+          New-Item -ItemType Directory -Force -Path release_artifacts | Out-Null
+          Move-Item "WebRTC-Gateway-Manager-Standalone-$tag.exe" "release_artifacts\"
+          Move-Item "WebRTC-Gateway-Manager-*.zip" "release_artifacts\"
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: release_artifacts/*
+          retention-days: 1
+
+  build-android:
+    name: Build Android APK
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter Dependencies
+        run: flutter pub get
+
+      - name: Build Android Release APK
+        run: flutter build apk --release
+
+      - name: Prepare Android Artifact
+        env:
+          UPSTREAM_TAG: ${{ needs.check-upstream.outputs.upstream_tag }}
+        run: |
+          mkdir -p android_artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk "android_artifacts/WebRTC-Gateway-Manager-${UPSTREAM_TAG}-android.apk"
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts
+          path: android_artifacts/*
+          retention-days: 1
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [check-upstream, build-windows, build-android]
+    if: needs.check-upstream.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: dist
+
+      - name: Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-artifacts
+          path: dist
+
+      - name: Generate Checksums
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.check-upstream.outputs.upstream_tag }}
+          name: WebRTC Gateway Manager GUI ${{ needs.check-upstream.outputs.upstream_tag }}
+          draft: false
+          prerelease: false
+          files: dist/*
+          body: |
+            ## WebRTC Gateway Manager (GUI) ${{ needs.check-upstream.outputs.upstream_tag }}
+
+            跨平台现代化图形用户界面（Windows 桌面端 & Android 移动端），自动同步封装官方 [WebRTC-Gateway ${{ needs.check-upstream.outputs.upstream_tag }}](https://github.com/BeingNoAbility/WebRTC-Gateway/releases/tag/${{ needs.check-upstream.outputs.upstream_tag }}) 原生内核。
+
+            ---
+
+            ### 📦 分发产物说明 (Downloads)
+
+            | 平台 / 类型 | 文件名 | 说明 |
+            | :--- | :--- | :--- |
+            | **Windows 单文件版** | `WebRTC-Gateway-Manager-Standalone-${{ needs.check-upstream.outputs.upstream_tag }}.exe` | 单文件双击即开，无需安装，支持托盘常驻与多 Agent 并发 |
+            | **Windows 便携绿色版** | `WebRTC-Gateway-Manager-${{ needs.check-upstream.outputs.upstream_tag }}-windows-x64-green.zip` | 零释放行为，100% 杜绝杀毒软件误报，解压即用 |
+            | **Android 客户端** | `WebRTC-Gateway-Manager-${{ needs.check-upstream.outputs.upstream_tag }}-android.apk` | 触控全屏自适应，暗黑模式，随时随地连接穿透网络 |
+            | **校验和文件** | `SHA256SUMS.txt` | 全发布文件的 SHA-256 完整性哈希清单 |
+
+            ---
+
+            ### 🔗 源项目更新日志
+            - 详情请参阅官方核心更新日志：[WebRTC-Gateway ${{ needs.check-upstream.outputs.upstream_tag }} Release Notes](https://github.com/BeingNoAbility/WebRTC-Gateway/releases/tag/${{ needs.check-upstream.outputs.upstream_tag }})
