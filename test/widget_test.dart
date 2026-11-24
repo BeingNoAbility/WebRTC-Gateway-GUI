@@ -67,29 +67,34 @@ void main() {
     expect(find.text(AppI18n().t('dashboard_title')), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_agents')));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
     expect(find.text(AppI18n().t('agent_list_title')), findsOneWidget);
+    expect(find.text(AppI18n().t('dashboard_title')), findsNothing);
 
     await tester.tap(find.text(AppI18n().t('nav_signal')));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
     expect(find.text(AppI18n().t('signal_server_title')), findsOneWidget);
+    expect(find.text(AppI18n().t('agent_list_title')), findsNothing);
 
     await tester.tap(find.text(AppI18n().t('nav_diagnostics')));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
     expect(find.text(AppI18n().t('diag_nat_title')), findsOneWidget);
+    expect(find.text(AppI18n().t('signal_server_title')), findsNothing);
     expect(find.textContaining('尚未检测'), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_logs')));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
     expect(find.text(AppI18n().t('logs_empty')), findsOneWidget);
+    expect(find.text(AppI18n().t('diag_nat_title')), findsNothing);
 
     await tester.tap(find.text(AppI18n().t('nav_settings')));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
     expect(find.text(AppI18n().t('settings_theme_label')), findsOneWidget);
+    expect(find.text(AppI18n().t('logs_empty')), findsNothing);
 
     // Switch to Dark Mode and rapid-click across all tabs while metrics notify
     appState.setThemePreference(AppThemePreference.dark);
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
 
     final rapidKeys = [
       'nav_dashboard',
@@ -113,6 +118,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     await tester.pumpAndSettle();
+
+    // Only the final selected tab (Settings) must remain visible onstage
+    expect(find.text(AppI18n().t('settings_theme_label')), findsOneWidget);
+    expect(find.text(AppI18n().t('dashboard_title')), findsNothing);
+    expect(find.text(AppI18n().t('agent_list_title')), findsNothing);
+    expect(find.text(AppI18n().t('signal_server_title')), findsNothing);
+    expect(find.text(AppI18n().t('diag_nat_title')), findsNothing);
 
     await tester.tap(find.byIcon(Icons.translate_rounded));
     await tester.pump(const Duration(milliseconds: 250));

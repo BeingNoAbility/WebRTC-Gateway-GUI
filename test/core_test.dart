@@ -251,6 +251,19 @@ void main() {
       expect(args, containsAllInOrder(['-metrics-addr', ':9095']));
       expect(args, isNot(contains('-target')));
       expect(args, isNot(contains('-access-secret')));
+
+      final ephemProfile = AgentProfile(
+        id: 'e1',
+        name: 'Ephem',
+        nodeId: 'ephem-node',
+        signalUrl: 'wss://sig.example.com/ws',
+        accessSecret: '',
+        signLink: '24h',
+      );
+      final ephemArgs =
+          ProcessSupervisor.buildAgentArgs(ephemProfile, metricsPort: 9096);
+      expect(ephemArgs, containsAllInOrder(['-sign-link', '24h']));
+      expect(ephemArgs, isNot(contains('-allow-public')));
     });
 
     test('buildSignalArgs handles tlsAuto and custom cert modes properly', () {
