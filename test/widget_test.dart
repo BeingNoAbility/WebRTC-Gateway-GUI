@@ -64,43 +64,58 @@ void main() {
 
     expect(find.text('WebRTC'), findsOneWidget);
     expect(find.text('Gateway'), findsOneWidget);
-    expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.text(AppI18n().t('dashboard_title')), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_agents')));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text(AppI18n().t('agent_list_title')), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_signal')));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text(AppI18n().t('signal_server_title')), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_diagnostics')));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text(AppI18n().t('diag_nat_title')), findsOneWidget);
     expect(find.textContaining('尚未检测'), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_logs')));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text(AppI18n().t('logs_empty')), findsOneWidget);
 
     await tester.tap(find.text(AppI18n().t('nav_settings')));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text(AppI18n().t('settings_theme_label')), findsOneWidget);
 
-    // Switch to Dark Mode and re-verify key views + locale toggle
+    // Switch to Dark Mode and rapid-click across all tabs while metrics notify
     appState.setThemePreference(AppThemePreference.dark);
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
 
-    await tester.tap(find.text(AppI18n().t('nav_logs')));
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text(AppI18n().t('logs_empty')), findsOneWidget);
-
-    await tester.tap(find.text(AppI18n().t('nav_settings')));
-    await tester.pump(const Duration(milliseconds: 200));
+    final rapidKeys = [
+      'nav_dashboard',
+      'nav_agents',
+      'nav_signal',
+      'nav_diagnostics',
+      'nav_logs',
+      'nav_settings',
+      'nav_logs',
+      'nav_diagnostics',
+      'nav_agents',
+      'nav_signal',
+      'nav_dashboard',
+      'nav_settings',
+    ];
+    for (final k in rapidKeys) {
+      await tester.tap(find.text(AppI18n().t(k)).first);
+      // Notify metrics mid-transition to verify zero frame/layout exceptions
+      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+      appState.metricsNotifier.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.translate_rounded));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(AppI18n().currentLocale, 'en');
     expect(find.text('Settings'), findsWidgets);
 

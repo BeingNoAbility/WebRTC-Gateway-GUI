@@ -256,8 +256,8 @@ class _LiveLogDialogState extends State<LiveLogDialog> {
                         const SizedBox(width: 8),
                         Text(
                           i18n.pick(
-                            '已暂停自动滚动：新日志到达不会强制跳至底部，可自由查看与选中文本。',
-                            'Auto-scroll paused. You can inspect and select text freely.',
+                            '已暂停自动滚动：新日志到达不会强制跳至底部，可自由翻阅或点击单行日志复制。',
+                            'Auto-scroll paused. Scroll freely or click any log line to copy.',
                           ),
                           style: const TextStyle(
                             fontSize: 11,
@@ -303,7 +303,7 @@ class _LiveLogDialogState extends State<LiveLogDialog> {
                               ),
                             ),
                           )
-                        : SelectionArea(
+                        : RepaintBoundary(
                             child: ListView.builder(
                               controller: _scrollCtrl,
                               itemCount: displayLogs.length,
@@ -327,21 +327,39 @@ class _LiveLogDialogState extends State<LiveLogDialog> {
                                   textColor = const Color(0xFF60A5FA);
                                 }
 
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 2.0),
-                                  child: Text(
-                                    line,
-                                    style: TextStyle(
-                                      fontFamily: 'Consolas',
-                                      fontFamilyFallback: const [
-                                        'Cascadia Mono',
-                                        'Courier New',
-                                        'monospace',
-                                      ],
-                                      fontSize: 12,
-                                      color: textColor,
-                                      height: 1.4,
+                                return InkWell(
+                                  onTap: () {
+                                    unawaited(
+                                      Clipboard.setData(
+                                        ClipboardData(text: line),
+                                      ),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          i18n.pick('已复制该行日志', 'Copied log line'),
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2.0,
+                                    ),
+                                    child: Text(
+                                      line,
+                                      style: TextStyle(
+                                        fontFamily: 'Consolas',
+                                        fontFamilyFallback: const [
+                                          'Cascadia Mono',
+                                          'Courier New',
+                                          'monospace',
+                                        ],
+                                        fontSize: 12,
+                                        color: textColor,
+                                        height: 1.4,
+                                      ),
                                     ),
                                   ),
                                 );

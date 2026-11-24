@@ -24,6 +24,10 @@ class AppState extends ChangeNotifier {
   /// rebuild unrelated screens or the root `MaterialApp`.
   final ChangeNotifier logNotifier = ChangeNotifier();
 
+  /// Dedicated notifier for 1Hz telemetry snapshots so hidden tabs and sidebar
+  /// navigation do not rebuild every second.
+  final ChangeNotifier metricsNotifier = ChangeNotifier();
+
   int _selectedTabIndex = 0;
   int get selectedTabIndex => _selectedTabIndex;
 
@@ -333,7 +337,8 @@ class AppState extends ChangeNotifier {
         if (futures.isEmpty) return;
         final results = await Future.wait(futures);
         if (!_isDisposed && results.any((updated) => updated)) {
-          notifyListeners();
+          // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+          metricsNotifier.notifyListeners();
         }
       } finally {
         _isPollingMetrics = false;
@@ -359,6 +364,7 @@ class AppState extends ChangeNotifier {
     metricsService.dispose();
     unawaited(supervisor.dispose());
     logNotifier.dispose();
+    metricsNotifier.dispose();
     super.dispose();
   }
 }

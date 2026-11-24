@@ -401,19 +401,19 @@ class _AgentCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          profile.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      Text(
+                        profile.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -432,7 +432,6 @@ class _AgentCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
@@ -456,8 +455,7 @@ class _AgentCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (profile.autoStart) ...[
-                        const SizedBox(width: 6),
+                      if (profile.autoStart)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
@@ -476,7 +474,6 @@ class _AgentCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ],
                     ],
                   ),
                   const SizedBox(height: 6),

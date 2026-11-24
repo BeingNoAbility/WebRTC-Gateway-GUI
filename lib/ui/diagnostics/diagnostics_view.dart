@@ -151,35 +151,52 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.security_rounded, color: Colors.blueAccent),
-                      const SizedBox(width: 8),
-                      Text(
-                        i18n.t('diag_nat_title'),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: _detectingNat
-                            ? null
-                            : () => unawaited(_runNatDetection(diag)),
-                        icon: _detectingNat
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
+                  SizedBox(
+                    width: double.infinity,
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.security_rounded,
+                              color: Colors.blueAccent,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                i18n.t('diag_nat_title'),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              )
-                            : const Icon(Icons.refresh_rounded, size: 18),
-                        label: Text(i18n.t('diag_nat_btn')),
-                      ),
-                    ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        FilledButton.icon(
+                          onPressed: _detectingNat
+                              ? null
+                              : () => unawaited(_runNatDetection(diag)),
+                          icon: _detectingNat
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh_rounded, size: 18),
+                          label: Text(i18n.t('diag_nat_btn')),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Container(

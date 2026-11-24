@@ -25,27 +25,12 @@ class DashboardView extends StatelessWidget {
     final i18n = AppI18n();
     final colorScheme = Theme.of(context).colorScheme;
 
-    var totalUpSpeed = 0.0;
-    var totalDownSpeed = 0.0;
-    var totalStreams = 0;
-
     final runningPublicNodes = state.profiles
         .where((p) => state.isRunning(p.id) && p.accessSecret.isEmpty)
         .toList();
 
-    for (final p in state.profiles) {
-      final history = state.metricsService.getHistory(p.id);
-      if (history.isNotEmpty) {
-        final latest = history.last;
-        totalUpSpeed += latest.uploadBytesPerSec;
-        totalDownSpeed += latest.downloadBytesPerSec;
-        totalStreams += latest.activeStreams;
-      }
-    }
-
     final isSignalRunning = state.isSignalRunning();
     final signalRuntime = state.signalState;
-    final sigMetrics = state.metricsService.latestSignalMetrics;
     final signalExposedUnprotected = isSignalRunning &&
         (state.signalConfig.signalSecret.isEmpty ||
             state.signalConfig.allowedOrigins.trim() == '*');
@@ -147,60 +132,113 @@ class DashboardView extends StatelessWidget {
           const SizedBox(height: 20),
 
           // SECTION 1: Agent Nodes
-          Row(
-            children: [
-              const Icon(Icons.hub_rounded, color: Colors.blueAccent, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                i18n.t('dashboard_agent_section'),
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.hub_rounded,
+                      color: Colors.blueAccent,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        i18n.t('dashboard_agent_section'),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${state.runningCount} / ${state.profiles.length} ${i18n.pick("在线", "Online")}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  '${state.runningCount} / ${state.profiles.length} ${i18n.pick("在线", "Online")}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueAccent,
-                  ),
+                TextButton.icon(
+                  onPressed: () => state.setTabIndex(1),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                  label: Text(i18n.t('dashboard_manage_nodes')),
                 ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => state.setTabIndex(1),
-                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                label: Text(i18n.t('dashboard_manage_nodes')),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
           _ResponsiveStatGrid(
             cards: [
-              _StatCard(
-                title: i18n.t('dashboard_total_up'),
-                value: _formatSpeed(totalUpSpeed),
-                icon: Icons.upload_rounded,
-                color: Colors.cyan,
+              AnimatedBuilder(
+                animation: state.metricsNotifier,
+                builder: (context, _) {
+                  var up = 0.0;
+                  for (final p in state.profiles) {
+                    final h = state.metricsService.getHistory(p.id);
+                    if (h.isNotEmpty) up += h.last.uploadBytesPerSec;
+                  }
+                  return _StatCard(
+                    title: i18n.t('dashboard_total_up'),
+                    value: _formatSpeed(up),
+                    icon: Icons.upload_rounded,
+                    color: Colors.cyan,
+                  );
+                },
               ),
-              _StatCard(
-                title: i18n.t('dashboard_total_down'),
-                value: _formatSpeed(totalDownSpeed),
-                icon: Icons.download_rounded,
-                color: Colors.indigo,
+              AnimatedBuilder(
+                animation: state.metricsNotifier,
+                builder: (context, _) {
+                  var down = 0.0;
+                  for (final p in state.profiles) {
+                    final h = state.metricsService.getHistory(p.id);
+                    if (h.isNotEmpty) down += h.last.downloadBytesPerSec;
+                  }
+                  return _StatCard(
+                    title: i18n.t('dashboard_total_down'),
+                    value: _formatSpeed(down),
+                    icon: Icons.download_rounded,
+                    color: Colors.indigo,
+                  );
+                },
               ),
-              _StatCard(
-                title: i18n.t('dashboard_active_streams'),
-                value: '$totalStreams ${i18n.pick("路", "streams")}',
-                icon: Icons.alt_route_rounded,
-                color: Colors.purpleAccent,
+              AnimatedBuilder(
+                animation: state.metricsNotifier,
+                builder: (context, _) {
+                  var streams = 0;
+                  for (final p in state.profiles) {
+                    final h = state.metricsService.getHistory(p.id);
+                    if (h.isNotEmpty) streams += h.last.activeStreams;
+                  }
+                  return _StatCard(
+                    title: i18n.t('dashboard_active_streams'),
+                    value: '$streams ${i18n.pick("路", "streams")}',
+                    icon: Icons.alt_route_rounded,
+                    color: Colors.purpleAccent,
+                  );
+                },
               ),
               _StatCard(
                 title: i18n.t('dashboard_total_nodes'),
@@ -264,7 +302,12 @@ class DashboardView extends StatelessWidget {
                   const SizedBox(height: 20),
                   SizedBox(
                     height: 190,
-                    child: _ThroughputChart(state: state),
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: state.metricsNotifier,
+                        builder: (context, _) => _ThroughputChart(state: state),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -276,92 +319,119 @@ class DashboardView extends StatelessWidget {
           const SizedBox(height: 32),
 
           // SECTION 2: Signal Server
-          Row(
-            children: [
-              const Icon(
-                Icons.dns_rounded,
-                color: Colors.purpleAccent,
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                i18n.t('dashboard_signal_section'),
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: (isSignalRunning ? Colors.green : colorScheme.outline)
-                      .withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.dns_rounded,
+                      color: Colors.purpleAccent,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        i18n.t('dashboard_signal_section'),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (isSignalRunning
+                                ? Colors.green
+                                : colorScheme.outline)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isSignalRunning
+                            ? '${i18n.t("agent_status_running")} (PID: ${signalRuntime.pid ?? "-"})'
+                            : i18n.t('agent_status_stopped'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isSignalRunning
+                              ? Colors.green
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  isSignalRunning
-                      ? '${i18n.t("agent_status_running")} (PID: ${signalRuntime.pid ?? "-"})'
-                      : i18n.t('agent_status_stopped'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: isSignalRunning
-                        ? Colors.green
-                        : colorScheme.onSurfaceVariant,
-                  ),
+                TextButton.icon(
+                  onPressed: () => state.setTabIndex(2),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                  label: Text(i18n.t('dashboard_signal_workspace')),
                 ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => state.setTabIndex(2),
-                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                label: Text(i18n.t('dashboard_signal_workspace')),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
-          _ResponsiveStatGrid(
-            cards: [
-              _StatCard(
-                title: i18n.pick('信令监听地址', 'Signal Listen Addr'),
-                value: state.signalConfig.addr,
-                icon: Icons.sensors_rounded,
-                color: Colors.purpleAccent,
-                subtitle: state.signalConfig.tlsAuto
-                    ? i18n.pick('自签 ECDSA TLS', 'Self-signed ECDSA TLS')
-                    : (state.signalConfig.tlsCert.isNotEmpty
-                        ? i18n.pick('自定义 TLS 证书', 'Custom TLS Cert')
-                        : i18n.pick('明文 HTTP (仅限本机)', 'Plain HTTP (Localhost)')),
-              ),
-              _StatCard(
-                title: i18n.pick('集群注册节点数', 'Registered Agents'),
-                value: isSignalRunning
-                    ? '${sigMetrics?.registeredNodes ?? 0}'
-                    : '--',
-                icon: Icons.hub_outlined,
-                color: Colors.deepPurple,
-                subtitle: i18n.pick('已在线握手注册的节点', 'Online registered nodes'),
-              ),
-              _StatCard(
-                title: i18n.pick('活跃访客客户端', 'Active Visitors'),
-                value: isSignalRunning
-                    ? '${sigMetrics?.activeClients ?? 0}'
-                    : '--',
-                icon: Icons.person_pin_circle_rounded,
-                color: Colors.teal,
-                subtitle: i18n.pick('正在连接中的访客浏览器', 'Connected browser clients'),
-              ),
-              _StatCard(
-                title: i18n.pick('累计信令消息量', 'Signaling Messages'),
-                value: isSignalRunning
-                    ? '${sigMetrics?.signalingMessagesTotal ?? 0}'
-                    : '--',
-                icon: Icons.swap_vert_circle_rounded,
-                color: Colors.blueGrey,
-                subtitle:
-                    '${i18n.pick("限流拦截", "Rate-limited")}: ${sigMetrics?.ratelimitRejectedTotal ?? 0}',
-              ),
-            ],
+          AnimatedBuilder(
+            animation: state.metricsNotifier,
+            builder: (context, _) {
+              final liveSig = state.metricsService.latestSignalMetrics;
+              return _ResponsiveStatGrid(
+                cards: [
+                  _StatCard(
+                    title: i18n.pick('信令监听地址', 'Signal Listen Addr'),
+                    value: state.signalConfig.addr,
+                    icon: Icons.sensors_rounded,
+                    color: Colors.purpleAccent,
+                    subtitle: state.signalConfig.tlsAuto
+                        ? i18n.pick('自签 ECDSA TLS', 'Self-signed ECDSA TLS')
+                        : (state.signalConfig.tlsCert.isNotEmpty
+                            ? i18n.pick('自定义 TLS 证书', 'Custom TLS Cert')
+                            : i18n.pick('明文 HTTP (仅限本机)', 'Plain HTTP (Localhost)')),
+                  ),
+                  _StatCard(
+                    title: i18n.pick('集群注册节点数', 'Registered Agents'),
+                    value: isSignalRunning
+                        ? '${liveSig?.registeredNodes ?? 0}'
+                        : '--',
+                    icon: Icons.hub_outlined,
+                    color: Colors.deepPurple,
+                    subtitle: i18n.pick('已在线握手注册的节点', 'Online registered nodes'),
+                  ),
+                  _StatCard(
+                    title: i18n.pick('活跃访客客户端', 'Active Visitors'),
+                    value: isSignalRunning
+                        ? '${liveSig?.activeClients ?? 0}'
+                        : '--',
+                    icon: Icons.person_pin_circle_rounded,
+                    color: Colors.teal,
+                    subtitle: i18n.pick('正在连接中的访客浏览器', 'Connected browser clients'),
+                  ),
+                  _StatCard(
+                    title: i18n.pick('累计信令消息量', 'Signaling Messages'),
+                    value: isSignalRunning
+                        ? '${liveSig?.signalingMessagesTotal ?? 0}'
+                        : '--',
+                    icon: Icons.swap_vert_circle_rounded,
+                    color: Colors.blueGrey,
+                    subtitle:
+                        '${i18n.pick("限流拦截", "Rate-limited")}: ${liveSig?.ratelimitRejectedTotal ?? 0}',
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
 
@@ -624,6 +694,7 @@ class _ThroughputChart extends StatelessWidget {
     final labelColor = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return LineChart(
+      duration: Duration.zero,
       LineChartData(
         minY: 0,
         maxY: maxY,

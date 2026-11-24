@@ -152,83 +152,162 @@ class _MainWindowState extends State<MainWindow> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final i18n = AppI18n();
-
-    final destinations = [
-      NavigationRailDestination(
-        icon: const Icon(Icons.dashboard_outlined),
-        selectedIcon:
-            const Icon(Icons.dashboard_rounded, color: Colors.blueAccent),
-        label: Text(i18n.t('nav_dashboard')),
+    final nav = context.select<
+        AppState,
+        ({
+          int tabIndex,
+          int runningCount,
+          bool signalRunning,
+          String locale,
+        })>(
+      (s) => (
+        tabIndex: s.selectedTabIndex,
+        runningCount: s.runningCount,
+        signalRunning: s.isSignalRunning(),
+        locale: AppI18n().currentLocale,
       ),
-      NavigationRailDestination(
-        icon: Badge(
-          isLabelVisible: state.runningCount > 0,
-          label: Text('${state.runningCount}'),
-          backgroundColor: Colors.green,
-          child: const Icon(Icons.hub_outlined),
-        ),
-        selectedIcon: Badge(
-          isLabelVisible: state.runningCount > 0,
-          label: Text('${state.runningCount}'),
-          backgroundColor: Colors.green,
-          child: const Icon(Icons.hub_rounded, color: Colors.blueAccent),
-        ),
-        label: Text(i18n.t('nav_agents')),
-      ),
-      NavigationRailDestination(
-        icon: Badge(
-          isLabelVisible: state.isSignalRunning(),
-          backgroundColor: Colors.purpleAccent,
-          child: const Icon(Icons.dns_outlined),
-        ),
-        selectedIcon: Badge(
-          isLabelVisible: state.isSignalRunning(),
-          backgroundColor: Colors.purpleAccent,
-          child: const Icon(Icons.dns_rounded, color: Colors.purpleAccent),
-        ),
-        label: Text(i18n.t('nav_signal')),
-      ),
-      NavigationRailDestination(
-        icon: const Icon(Icons.troubleshoot_outlined),
-        selectedIcon:
-            const Icon(Icons.troubleshoot_rounded, color: Colors.blueAccent),
-        label: Text(i18n.t('nav_diagnostics')),
-      ),
-      NavigationRailDestination(
-        icon: const Icon(Icons.receipt_long_outlined),
-        selectedIcon:
-            const Icon(Icons.receipt_long_rounded, color: Colors.blueAccent),
-        label: Text(i18n.t('nav_logs')),
-      ),
-      NavigationRailDestination(
-        icon: const Icon(Icons.settings_outlined),
-        selectedIcon:
-            const Icon(Icons.settings_rounded, color: Colors.blueAccent),
-        label: Text(i18n.t('nav_settings')),
-      ),
-    ];
+    );
+    final state = context.read<AppState>();
 
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            extended: true,
-            minExtendedWidth: 200,
-            leading: Padding(
-              padding: const EdgeInsets.only(
-                top: 16.0,
-                bottom: 24.0,
-                left: 16.0,
-                right: 16.0,
-              ),
+          _DesktopSidebar(
+            selectedIndex: nav.tabIndex,
+            runningCount: nav.runningCount,
+            signalRunning: nav.signalRunning,
+            locale: nav.locale,
+            onSelect: state.setTabIndex,
+            onToggleLocale: state.toggleLocale,
+          ),
+          Expanded(
+            child: _SmoothTabStack(
+              selectedIndex: nav.tabIndex,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarEntry {
+  final int index;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final Color activeColor;
+  final int? badgeCount;
+  final bool showDotBadge;
+  final Color? badgeColor;
+
+  const _SidebarEntry({
+    required this.index,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.activeColor,
+    this.badgeCount,
+    this.showDotBadge = false,
+    this.badgeColor,
+  });
+}
+
+class _DesktopSidebar extends StatelessWidget {
+  final int selectedIndex;
+  final int runningCount;
+  final bool signalRunning;
+  final String locale;
+  final ValueChanged<int> onSelect;
+  final VoidCallback onToggleLocale;
+
+  const _DesktopSidebar({
+    required this.selectedIndex,
+    required this.runningCount,
+    required this.signalRunning,
+    required this.locale,
+    required this.onSelect,
+    required this.onToggleLocale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = AppI18n();
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final entries = [
+      _SidebarEntry(
+        index: 0,
+        icon: Icons.dashboard_outlined,
+        selectedIcon: Icons.dashboard_rounded,
+        label: i18n.t('nav_dashboard'),
+        activeColor: Colors.blueAccent,
+      ),
+      _SidebarEntry(
+        index: 1,
+        icon: Icons.hub_outlined,
+        selectedIcon: Icons.hub_rounded,
+        label: i18n.t('nav_agents'),
+        activeColor: Colors.blueAccent,
+        badgeCount: runningCount,
+        badgeColor: Colors.green,
+      ),
+      _SidebarEntry(
+        index: 2,
+        icon: Icons.dns_outlined,
+        selectedIcon: Icons.dns_rounded,
+        label: i18n.t('nav_signal'),
+        activeColor: Colors.purpleAccent,
+        showDotBadge: signalRunning,
+        badgeColor: Colors.purpleAccent,
+      ),
+      _SidebarEntry(
+        index: 3,
+        icon: Icons.troubleshoot_outlined,
+        selectedIcon: Icons.troubleshoot_rounded,
+        label: i18n.t('nav_diagnostics'),
+        activeColor: Colors.blueAccent,
+      ),
+      _SidebarEntry(
+        index: 4,
+        icon: Icons.receipt_long_outlined,
+        selectedIcon: Icons.receipt_long_rounded,
+        label: i18n.t('nav_logs'),
+        activeColor: Colors.blueAccent,
+      ),
+      _SidebarEntry(
+        index: 5,
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings_rounded,
+        label: i18n.t('nav_settings'),
+        activeColor: Colors.blueAccent,
+      ),
+    ];
+
+    return RepaintBoundary(
+      child: Container(
+        width: 212,
+        decoration: BoxDecoration(
+          color: isDark
+              ? colorScheme.surfaceContainerLow
+              : colorScheme.surfaceContainerLowest,
+          border: Border(
+            right: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+          ),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 22, 16, 20),
               child: Row(
                 children: [
                   Image.asset(
                     'assets/icons/logo.png',
-                    width: 38,
-                    height: 38,
+                    width: 36,
+                    height: 36,
                   ),
                   const SizedBox(width: 12),
                   const Column(
@@ -237,7 +316,7 @@ class _MainWindowState extends State<MainWindow> {
                       Text(
                         'WebRTC',
                         style: TextStyle(
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           fontSize: 16,
                           height: 1.1,
                         ),
@@ -245,8 +324,8 @@ class _MainWindowState extends State<MainWindow> {
                       Text(
                         'Gateway',
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
                           color: Colors.blueAccent,
                         ),
                       ),
@@ -255,51 +334,283 @@ class _MainWindowState extends State<MainWindow> {
                 ],
               ),
             ),
-            trailing: Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        i18n.currentLocale == 'zh' ? '简体中文' : 'EN',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: i18n.pick('切换语言 (Switch Language)', 'Switch Language'),
-                        icon: const Icon(Icons.translate_rounded, size: 18),
-                        onPressed: state.toggleLocale,
-                      ),
-                    ],
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: entries.length,
+                itemBuilder: (context, idx) {
+                  final item = entries[idx];
+                  return _SidebarNavItem(
+                    entry: item,
+                    selected: selectedIndex == item.index,
+                    onTap: () => onSelect(item.index),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    side: BorderSide(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  onPressed: onToggleLocale,
+                  icon: const Icon(Icons.translate_rounded, size: 16),
+                  label: Text(
+                    locale == 'zh' ? '简体中文 · EN' : 'English · 中文',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ),
-            selectedIndex: state.selectedTabIndex,
-            onDestinationSelected: state.setTabIndex,
-            destinations: destinations,
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          Expanded(
-            child: IndexedStack(
-              index: state.selectedTabIndex,
-              children: const [
-                DashboardView(),
-                AgentListView(),
-                SignalServerView(),
-                DiagnosticsView(),
-                LogViewerView(),
-                SettingsView(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarNavItem extends StatelessWidget {
+  final _SidebarEntry entry;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SidebarNavItem({
+    required this.entry,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final unselectedColor = colorScheme.onSurfaceVariant;
+    final activeBg = entry.activeColor.withValues(alpha: 0.14);
+
+    Widget iconWidget = Icon(
+      selected ? entry.selectedIcon : entry.icon,
+      size: 20,
+      color: selected ? entry.activeColor : unselectedColor,
+    );
+
+    if (entry.badgeCount != null) {
+      iconWidget = Badge(
+        isLabelVisible: entry.badgeCount! > 0,
+        label: Text('${entry.badgeCount}'),
+        backgroundColor: entry.badgeColor ?? Colors.green,
+        child: iconWidget,
+      );
+    } else if (entry.index == 2) {
+      iconWidget = Badge(
+        isLabelVisible: entry.showDotBadge,
+        backgroundColor: entry.badgeColor ?? Colors.purpleAccent,
+        child: iconWidget,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          hoverColor: colorScheme.onSurface.withValues(alpha: 0.05),
+          splashColor: entry.activeColor.withValues(alpha: 0.12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: selected ? activeBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  width: 3,
+                  height: selected ? 18 : 0,
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: selected ? entry.activeColor : Colors.transparent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                iconWidget,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    entry.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color:
+                          selected ? colorScheme.onSurface : unselectedColor,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmoothTabStack extends StatefulWidget {
+  final int selectedIndex;
+
+  const _SmoothTabStack({required this.selectedIndex});
+
+  @override
+  State<_SmoothTabStack> createState() => _SmoothTabStackState();
+}
+
+class _SmoothTabStackState extends State<_SmoothTabStack> {
+  static const int _tabCount = 6;
+  final List<Widget?> _cachedPages = List<Widget?>.filled(_tabCount, null);
+  final List<bool> _animateOnMount = List<bool>.filled(_tabCount, false);
+
+  Widget _createPage(int index) {
+    switch (index) {
+      case 0:
+        return const DashboardView();
+      case 1:
+        return const AgentListView();
+      case 2:
+        return const SignalServerView();
+      case 3:
+        return const DiagnosticsView();
+      case 4:
+        return const LogViewerView();
+      case 5:
+        return const SettingsView();
+      default:
+        return const DashboardView();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedPages[widget.selectedIndex] = _createPage(widget.selectedIndex);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SmoothTabStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idx = widget.selectedIndex;
+    if (_cachedPages[idx] == null) {
+      _cachedPages[idx] = _createPage(idx);
+      _animateOnMount[idx] = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < _tabCount; i++)
+          if (_cachedPages[i] != null)
+            _TabPageSlot(
+              key: ValueKey<int>(i),
+              isActive: widget.selectedIndex == i,
+              animateOnMount: _animateOnMount[i],
+              child: _cachedPages[i]!,
+            ),
+      ],
+    );
+  }
+}
+
+class _TabPageSlot extends StatefulWidget {
+  final bool isActive;
+  final bool animateOnMount;
+  final Widget child;
+
+  const _TabPageSlot({
+    super.key,
+    required this.isActive,
+    required this.animateOnMount,
+    required this.child,
+  });
+
+  @override
+  State<_TabPageSlot> createState() => _TabPageSlotState();
+}
+
+class _TabPageSlotState extends State<_TabPageSlot> {
+  late bool _visible;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animateOnMount && widget.isActive) {
+      _visible = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.isActive && !_visible) {
+          setState(() => _visible = true);
+        }
+      });
+    } else {
+      _visible = widget.isActive;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _TabPageSlot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive) {
+      _visible = widget.isActive;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: TickerMode(
+        enabled: widget.isActive,
+        child: IgnorePointer(
+          ignoring: !widget.isActive,
+          child: ExcludeSemantics(
+            excluding: !widget.isActive,
+            child: RepaintBoundary(
+              child: AnimatedSlide(
+                offset: _visible ? Offset.zero : const Offset(0, 0.012),
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _visible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 140),
+                  curve: Curves.easeOutCubic,
+                  child: widget.child,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

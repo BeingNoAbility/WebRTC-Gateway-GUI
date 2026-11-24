@@ -224,7 +224,7 @@ class _LogViewerViewState extends State<LogViewerView> {
                             ),
                           ),
                         )
-                      : SelectionArea(
+                      : RepaintBoundary(
                           child: ListView.builder(
                             controller: _scrollCtrl,
                             itemCount: logs.length,
@@ -243,21 +243,36 @@ class _LogViewerViewState extends State<LogViewerView> {
                                 textColor = const Color(0xFF38BDF8);
                               }
 
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 2.0),
-                                child: Text(
-                                  line,
-                                  style: TextStyle(
-                                    fontFamily: 'Consolas',
-                                    fontFamilyFallback: const [
-                                      'Cascadia Mono',
-                                      'Courier New',
-                                      'monospace',
-                                    ],
-                                    fontSize: 12.5,
-                                    color: textColor,
-                                    height: 1.35,
+                              return InkWell(
+                                onTap: () {
+                                  unawaited(
+                                    Clipboard.setData(ClipboardData(text: line)),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        i18n.pick('已复制该行日志', 'Copied log line'),
+                                      ),
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 2.0),
+                                  child: Text(
+                                    line,
+                                    style: TextStyle(
+                                      fontFamily: 'Consolas',
+                                      fontFamilyFallback: const [
+                                        'Cascadia Mono',
+                                        'Courier New',
+                                        'monospace',
+                                      ],
+                                      fontSize: 12.5,
+                                      color: textColor,
+                                      height: 1.35,
+                                    ),
                                   ),
                                 ),
                               );

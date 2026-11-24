@@ -1037,23 +1037,46 @@ class _SignalServerViewState extends State<SignalServerView> {
                                   ),
                                 ),
                               )
-                            : SelectionArea(
+                            : RepaintBoundary(
                                 child: ListView.builder(
                                   controller: _signalLogScrollCtrl,
                                   itemCount: logs.length,
                                   itemBuilder: (ctx, idx) {
-                                    return Text(
-                                      logs[idx],
-                                      style: const TextStyle(
-                                        fontFamily: 'Consolas',
-                                        fontFamilyFallback: [
-                                          'Cascadia Mono',
-                                          'Courier New',
-                                          'monospace',
-                                        ],
-                                        fontSize: 12,
-                                        color: Color(0xFFE2E8F0),
-                                        height: 1.35,
+                                    final line = logs[idx];
+                                    return InkWell(
+                                      onTap: () {
+                                        unawaited(
+                                          Clipboard.setData(
+                                            ClipboardData(text: line),
+                                          ),
+                                        );
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              i18n.pick('已复制该行日志', 'Copied log line'),
+                                            ),
+                                            duration: const Duration(seconds: 1),
+                                          ),
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 1.5,
+                                        ),
+                                        child: Text(
+                                          line,
+                                          style: const TextStyle(
+                                            fontFamily: 'Consolas',
+                                            fontFamilyFallback: [
+                                              'Cascadia Mono',
+                                              'Courier New',
+                                              'monospace',
+                                            ],
+                                            fontSize: 12,
+                                            color: Color(0xFFE2E8F0),
+                                            height: 1.35,
+                                          ),
+                                        ),
                                       ),
                                     );
                                   },
