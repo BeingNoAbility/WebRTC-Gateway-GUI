@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 enum ProcessStatus {
   stopped,
   starting,
@@ -13,7 +15,10 @@ class AgentRuntimeState {
   int? metricsPort;
   DateTime? startTime;
   String? lastError;
-  final List<String> recentLogs;
+  String? generatedShareLink;
+  int generation;
+  int logVersion;
+  final ListQueue<String> _recentLogs;
   static const int maxLogs = 500;
 
   AgentRuntimeState({
@@ -23,19 +28,27 @@ class AgentRuntimeState {
     this.metricsPort,
     this.startTime,
     this.lastError,
+    this.generatedShareLink,
+    this.generation = 0,
+    this.logVersion = 0,
     List<String>? logs,
-  }) : recentLogs = logs ?? [];
+  }) : _recentLogs = ListQueue<String>.from(logs ?? const []);
+
+  List<String> get recentLogs => List<String>.unmodifiable(_recentLogs);
 
   void addLog(String line) {
-    if (recentLogs.length >= maxLogs) {
-      recentLogs.removeAt(0);
+    if (_recentLogs.length >= maxLogs) {
+      _recentLogs.removeFirst();
     }
-    recentLogs.add(line);
+    _recentLogs.addLast(line);
+    logVersion++;
   }
 
   void clearLogs() {
-    recentLogs.clear();
+    _recentLogs.clear();
+    logVersion++;
   }
 
-  Duration? get uptime => startTime != null ? DateTime.now().difference(startTime!) : null;
+  Duration? get uptime =>
+      startTime != null ? DateTime.now().difference(startTime!) : null;
 }

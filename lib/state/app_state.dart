@@ -20,6 +20,10 @@ class AppState extends ChangeNotifier {
   final DiagnosticService diagnosticService;
   final AutostartService autostartService = AutostartService();
 
+  /// Dedicated notifier for high-frequency stdout/stderr logs so log bursts do not
+  /// rebuild unrelated screens or the root `MaterialApp`.
+  final ChangeNotifier logNotifier = ChangeNotifier();
+
   int _selectedTabIndex = 0;
   int get selectedTabIndex => _selectedTabIndex;
 
@@ -30,8 +34,13 @@ class AppState extends ChangeNotifier {
   late AppSettings appSettings;
 
   Timer? _metricsTimer;
-  StreamSubscription? _stateSub;
-  StreamSubscription? _logSub;
+  Timer? _logThrottleTimer;
+  bool _pendingLogNotify = false;
+  bool _isPollingMetrics = false;
+  bool _isDisposed = false;
+
+  StreamSubscription<String>? _stateSub;
+  StreamSubscription<MapEntry<String, String>>? _logSub;
 
   AppState({
     required this.configRepo,
@@ -42,16 +51,32 @@ class AppState extends ChangeNotifier {
   }) {
     signalConfig = configRepo.signalConfig;
     appSettings = configRepo.settings;
+    AppI18n().setLocale(appSettings.locale);
 
     _stateSub = supervisor.onStateChange.listen((_) {
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
     });
 
     _logSub = supervisor.onLog.listen((_) {
-      notifyListeners();
+      _scheduleThrottledLogNotify();
     });
 
     _startMetricsPolling();
+  }
+
+  void _scheduleThrottledLogNotify() {
+    _pendingLogNotify = true;
+    if (_logThrottleTimer != null && _logThrottleTimer!.isActive) {
+      return;
+    }
+    _logThrottleTimer = Timer(const Duration(milliseconds: 100), () {
+      if (_isDisposed) return;
+      if (_pendingLogNotify) {
+        _pendingLogNotify = false;
+        // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+        logNotifier.notifyListeners();
+      }
+    });
   }
 
   void setTabIndex(int index) {
@@ -66,7 +91,8 @@ class AppState extends ChangeNotifier {
 
   List<AgentProfile> get profiles => configRepo.profiles;
 
-  AgentRuntimeState getRuntimeState(String profileId) => supervisor.getOrCreateState(profileId);
+  AgentRuntimeState getRuntimeState(String profileId) =>
+      supervisor.getOrCreateState(profileId);
 
   bool isRunning(String profileId) => supervisor.isRunning(profileId);
 
@@ -79,14 +105,22 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  AppThemePreference get themePreference => appSettings.themeMode;
+  void setThemePreference(AppThemePreference preference) {
+    appSettings.themeMode = preference;
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
   bool get startOnBoot => appSettings.startOnBoot;
-  Future<void> setStartOnBoot(bool enable) async {
+  Future<bool> setStartOnBoot(bool enable) async {
     final ok = await autostartService.setEnabled(enable);
     if (ok) {
       appSettings.startOnBoot = enable;
       configRepo.updateSettings(appSettings);
       notifyListeners();
     }
+    return ok;
   }
 
   double get fontScale => appSettings.fontScale;
@@ -94,31 +128,31 @@ class AppState extends ChangeNotifier {
   double get customDpiScale => appSettings.customDpiScale;
   String get githubMirror => appSettings.githubMirror;
 
-  Future<void> setFontScale(double scale) async {
+  void setFontScale(double scale) {
     appSettings.fontScale = scale.clamp(0.80, 1.40);
     configRepo.updateSettings(appSettings);
     notifyListeners();
   }
 
-  Future<void> setAutoDpi(bool auto) async {
+  void setAutoDpi(bool auto) {
     appSettings.autoDpi = auto;
     configRepo.updateSettings(appSettings);
     notifyListeners();
   }
 
-  Future<void> setCustomDpiScale(double scale) async {
+  void setCustomDpiScale(double scale) {
     appSettings.customDpiScale = scale.clamp(0.75, 2.0);
     configRepo.updateSettings(appSettings);
     notifyListeners();
   }
 
-  Future<void> setGithubMirror(String mirror) async {
+  void setGithubMirror(String mirror) {
     appSettings.githubMirror = mirror.trim();
     configRepo.updateSettings(appSettings);
     notifyListeners();
   }
 
-  Future<void> resetDisplayScaling() async {
+  void resetDisplayScaling() {
     appSettings.fontScale = 1.0;
     appSettings.autoDpi = true;
     appSettings.customDpiScale = 1.0;
@@ -126,9 +160,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startAgent(AgentProfile profile) async {
-    await supervisor.startAgent(profile);
+  Future<bool> startAgent(AgentProfile profile) async {
+    final ok = await supervisor.startAgent(profile);
     notifyListeners();
+    return ok;
   }
 
   Future<void> stopAgent(String profileId) async {
@@ -138,29 +173,43 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> startAllAgents() async {
-    for (final profile in profiles) {
-      if (!isRunning(profile.id)) {
-        await supervisor.startAgent(profile);
-      }
-    }
+    final targets = profiles.where((p) => !isRunning(p.id)).toList();
+    await Future.wait(targets.map((p) => supervisor.startAgent(p)));
     notifyListeners();
   }
 
   Future<void> stopAllAgents() async {
-    for (final profile in profiles) {
-      if (isRunning(profile.id)) {
-        await supervisor.stopAgent(profile.id);
-      }
-    }
+    final targets = profiles.where((p) => isRunning(p.id)).toList();
+    await Future.wait(
+      targets.map((p) async {
+        await supervisor.stopAgent(p.id);
+        metricsService.clearProfile(p.id);
+      }),
+    );
     notifyListeners();
   }
 
-  Future<void> addProfile(AgentProfile profile) async {
+  /// Automatically launches Signal Server and Agent profiles marked with `autoStart`.
+  Future<void> runAutoStarts() async {
+    if (signalConfig.autoStart && !isSignalRunning()) {
+      await startSignalServer();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    for (final profile in profiles) {
+      if (profile.autoStart &&
+          !isRunning(profile.id) &&
+          (profile.accessSecret.isNotEmpty || profile.allowPublic)) {
+        await startAgent(profile);
+      }
+    }
+  }
+
+  void addProfile(AgentProfile profile) {
     configRepo.addProfile(profile);
     notifyListeners();
   }
 
-  Future<void> updateProfile(AgentProfile profile) async {
+  void updateProfile(AgentProfile profile) {
     configRepo.updateProfile(profile);
     notifyListeners();
   }
@@ -173,10 +222,19 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startSignalServer() async {
-    configRepo.updateSignalConfig(signalConfig);
-    await supervisor.startSignalServer(signalConfig);
+  void applyBestStunServers(List<String> stunServers) {
+    if (stunServers.isEmpty) return;
+    for (final profile in profiles) {
+      configRepo.updateProfile(profile.copyWith(stunServers: stunServers));
+    }
     notifyListeners();
+  }
+
+  Future<bool> startSignalServer() async {
+    configRepo.updateSignalConfig(signalConfig);
+    final ok = await supervisor.startSignalServer(signalConfig);
+    notifyListeners();
+    return ok;
   }
 
   Future<void> stopSignalServer() async {
@@ -186,7 +244,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> probeSignalHealth() async {
-    return await supervisor.probeSignalHealth();
+    return supervisor.probeSignalHealth(signalConfig);
   }
 
   bool isSignalRunning() => supervisor.isSignalRunning();
@@ -200,7 +258,8 @@ class AppState extends ChangeNotifier {
 
   void clearLogs([String? profileId]) {
     supervisor.clearLogs(profileId);
-    notifyListeners();
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    logNotifier.notifyListeners();
   }
 
   void toggleLocale() {
@@ -224,7 +283,10 @@ class AppState extends ChangeNotifier {
     await configRepo.exportSignalToFile(targetPath);
   }
 
-  Future<void> exportUpstreamAgentYaml(String profileId, String targetPath) async {
+  Future<void> exportUpstreamAgentYaml(
+    String profileId,
+    String targetPath,
+  ) async {
     await configRepo.exportUpstreamAgentYaml(profileId, targetPath);
   }
 
@@ -236,41 +298,67 @@ class AppState extends ChangeNotifier {
     final res = await configRepo.importFromFile(filePath);
     signalConfig = configRepo.signalConfig;
     appSettings = configRepo.settings;
+    AppI18n().setLocale(appSettings.locale);
     notifyListeners();
     return res;
   }
 
   void _startMetricsPolling() {
     _metricsTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      bool updated = false;
+      if (_isPollingMetrics || _isDisposed) return;
+      _isPollingMetrics = true;
 
-      // 1. Poll running agents
-      for (final profile in profiles) {
-        final state = getRuntimeState(profile.id);
-        if (state.status == ProcessStatus.running && state.metricsPort != null) {
-          final res = await metricsService.pollMetrics(profile.id, state.metricsPort!);
-          if (res != null) updated = true;
+      try {
+        final futures = <Future<bool>>[];
+        for (final profile in profiles) {
+          final state = getRuntimeState(profile.id);
+          if (state.status == ProcessStatus.running &&
+              state.metricsPort != null) {
+            futures.add(
+              metricsService
+                  .pollMetrics(profile.id, state.metricsPort!)
+                  .then((snap) => snap != null),
+            );
+          }
         }
-      }
 
-      // 2. Poll running Signal server
-      if (isSignalRunning()) {
-        final sigRes = await metricsService.pollSignalMetrics(signalConfig.addr, signalConfig.metricsAddr);
-        if (sigRes != null) updated = true;
-      }
+        if (isSignalRunning()) {
+          futures.add(
+            metricsService
+                .pollSignalMetrics(signalConfig)
+                .then((snap) => snap != null),
+          );
+        }
 
-      if (updated) {
-        notifyListeners();
+        if (futures.isEmpty) return;
+        final results = await Future.wait(futures);
+        if (!_isDisposed && results.any((updated) => updated)) {
+          notifyListeners();
+        }
+      } finally {
+        _isPollingMetrics = false;
       }
     });
   }
 
+  Future<void> shutdownForExit() async {
+    _metricsTimer?.cancel();
+    _logThrottleTimer?.cancel();
+    await stopAllAgents();
+    await stopSignalServer();
+    await configRepo.flush();
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
     _metricsTimer?.cancel();
-    _stateSub?.cancel();
-    _logSub?.cancel();
-    supervisor.dispose();
+    _logThrottleTimer?.cancel();
+    unawaited(_stateSub?.cancel());
+    unawaited(_logSub?.cancel());
+    metricsService.dispose();
+    unawaited(supervisor.dispose());
+    logNotifier.dispose();
     super.dispose();
   }
 }

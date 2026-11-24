@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import '../models/metrics_data.dart';
+import '../models/signal_profile.dart';
 
 class SignalMetricsSnapshot {
   final DateTime timestamp;
@@ -9,12 +12,28 @@ class SignalMetricsSnapshot {
   final int signalingMessagesTotal;
   final int ratelimitRejectedTotal;
 
-  SignalMetricsSnapshot({
+  const SignalMetricsSnapshot({
     required this.timestamp,
     required this.registeredNodes,
     required this.activeClients,
     required this.signalingMessagesTotal,
     required this.ratelimitRejectedTotal,
+  });
+}
+
+class AgentParsedMetrics {
+  final int totalSentBytes;
+  final int totalRecvBytes;
+  final int activeStreams;
+  final int activePeers;
+  final int streamRejectionsTotal;
+
+  const AgentParsedMetrics({
+    required this.totalSentBytes,
+    required this.totalRecvBytes,
+    required this.activeStreams,
+    required this.activePeers,
+    required this.streamRejectionsTotal,
   });
 }
 
@@ -24,87 +43,155 @@ class MetricsService {
   final Map<String, int> _lastRecvBytes = {};
   final Map<String, DateTime> _lastPollTime = {};
 
+  final http.Client _httpClient;
+  final http.Client _insecureHttpsClient;
+
   SignalMetricsSnapshot? _latestSignalMetrics;
   SignalMetricsSnapshot? get latestSignalMetrics => _latestSignalMetrics;
 
   static const int maxHistoryLength = 40;
 
-  List<MetricsSnapshot> getHistory(String profileId) => _history[profileId] ?? [];
+  MetricsService({http.Client? httpClient, http.Client? insecureHttpsClient})
+      : _httpClient = httpClient ?? http.Client(),
+        _insecureHttpsClient = insecureHttpsClient ?? _buildLocalSelfSignedClient();
 
-  /// Computes aggregated metrics history across all running agents
-  List<MetricsSnapshot> getAggregatedHistory() {
-    if (_history.isEmpty) return [];
-
-    double totalUp = 0;
-    double totalDown = 0;
-    int totalStreams = 0;
-    int totalConns = 0;
-
-    for (final list in _history.values) {
-      if (list.isNotEmpty) {
-        final last = list.last;
-        totalUp += last.uploadBytesPerSec;
-        totalDown += last.downloadBytesPerSec;
-        totalStreams += last.activeStreams;
-        totalConns += last.totalConnections;
-      }
-    }
-
-    final now = DateTime.now();
-    return [
-      MetricsSnapshot(
-        timestamp: now,
-        uploadBytesPerSec: totalUp,
-        downloadBytesPerSec: totalDown,
-        activeStreams: totalStreams,
-        totalConnections: totalConns,
-      ),
-    ];
+  static http.Client _buildLocalSelfSignedClient() {
+    final ioHttp = HttpClient()
+      ..badCertificateCallback = (cert, host, port) =>
+          host == '127.0.0.1' || host == 'localhost' || host == '::1';
+    return IOClient(ioHttp);
   }
 
-  /// Polls Agent Prometheus endpoint at :port/metrics
+  List<MetricsSnapshot> getHistory(String profileId) =>
+      List.unmodifiable(_history[profileId] ?? const []);
+
+  /// Computes timestamp-aligned aggregated time series across given profile IDs.
+  List<MetricsSnapshot> getAggregatedTimeSeries(Iterable<String> profileIds) {
+    final buckets = <int, List<MetricsSnapshot>>{};
+    for (final id in profileIds) {
+      final list = _history[id];
+      if (list == null || list.isEmpty) continue;
+      for (final snap in list) {
+        final secKey = snap.timestamp.millisecondsSinceEpoch ~/ 1000;
+        buckets.putIfAbsent(secKey, () => []).add(snap);
+      }
+    }
+    if (buckets.isEmpty) return const [];
+
+    final sortedKeys = buckets.keys.toList()..sort();
+    final trimmedKeys = sortedKeys.length > maxHistoryLength
+        ? sortedKeys.sublist(sortedKeys.length - maxHistoryLength)
+        : sortedKeys;
+
+    return trimmedKeys.map((secKey) {
+      final items = buckets[secKey]!;
+      var up = 0.0;
+      var down = 0.0;
+      var streams = 0;
+      var conns = 0;
+      var rejections = 0;
+      for (final item in items) {
+        up += item.uploadBytesPerSec;
+        down += item.downloadBytesPerSec;
+        streams += item.activeStreams;
+        conns += item.totalConnections;
+        rejections += item.streamRejectionsTotal;
+      }
+      return MetricsSnapshot(
+        timestamp: DateTime.fromMillisecondsSinceEpoch(secKey * 1000),
+        uploadBytesPerSec: up,
+        downloadBytesPerSec: down,
+        activeStreams: streams,
+        totalConnections: conns,
+        streamRejectionsTotal: rejections,
+      );
+    }).toList();
+  }
+
+  /// Parses Prometheus metrics text emitted by `pkg/agent/metrics.go`.
+  static AgentParsedMetrics parseAgentMetrics(String body) {
+    return AgentParsedMetrics(
+      totalSentBytes: extractMetricInt(
+        body,
+        'webrtc_gateway_traffic_bytes_total',
+        labelFilter: 'direction="tx"',
+      ),
+      totalRecvBytes: extractMetricInt(
+        body,
+        'webrtc_gateway_traffic_bytes_total',
+        labelFilter: 'direction="rx"',
+      ),
+      activeStreams: extractMetricInt(body, 'webrtc_gateway_active_streams'),
+      activePeers: extractMetricInt(body, 'webrtc_gateway_active_peers'),
+      streamRejectionsTotal: extractMetricInt(
+        body,
+        'webrtc_gateway_stream_rejections_total',
+      ),
+    );
+  }
+
+  /// Parses Prometheus metrics text emitted by `pkg/signaling/metrics.go`.
+  static SignalMetricsSnapshot parseSignalMetrics(String body) {
+    return SignalMetricsSnapshot(
+      timestamp: DateTime.now(),
+      registeredNodes: extractMetricInt(
+        body,
+        'webrtc_gateway_registered_nodes',
+      ),
+      activeClients: extractMetricInt(
+        body,
+        'webrtc_gateway_active_clients',
+      ),
+      signalingMessagesTotal: extractMetricInt(
+        body,
+        'webrtc_gateway_signaling_messages_total',
+      ),
+      ratelimitRejectedTotal: extractMetricInt(
+        body,
+        'webrtc_gateway_ratelimit_rejected_total',
+      ),
+    );
+  }
+
+  /// Polls Agent Prometheus endpoint at `http://127.0.0.1:<port>/metrics`.
   Future<MetricsSnapshot?> pollMetrics(String profileId, int port) async {
     final url = Uri.parse('http://127.0.0.1:$port/metrics');
     try {
-      final response = await http.get(url).timeout(const Duration(milliseconds: 1500));
+      final response = await _httpClient
+          .get(url)
+          .timeout(const Duration(milliseconds: 1500));
       if (response.statusCode != 200) return null;
 
       final now = DateTime.now();
-      final body = response.body;
+      final parsed = parseAgentMetrics(response.body);
 
-      // Extract official Go metrics matching pkg/agent/metrics.go
-      int totalSent = _extractMetricInt(body, 'webrtc_gateway_traffic_bytes_total', labelFilter: 'direction="tx"');
-      int totalRecv = _extractMetricInt(body, 'webrtc_gateway_traffic_bytes_total', labelFilter: 'direction="rx"');
-      int activeStreams = _extractMetricInt(body, 'webrtc_gateway_active_streams');
-      int activePeers = _extractMetricInt(body, 'webrtc_gateway_active_peers');
-
-      double upSpeed = 0;
-      double downSpeed = 0;
+      var upSpeed = 0.0;
+      var downSpeed = 0.0;
 
       if (_lastPollTime.containsKey(profileId)) {
-        final elapsedSec = now.difference(_lastPollTime[profileId]!).inMilliseconds / 1000.0;
+        final elapsedSec =
+            now.difference(_lastPollTime[profileId]!).inMilliseconds / 1000.0;
         if (elapsedSec > 0.1) {
-          final lastSent = _lastSentBytes[profileId] ?? totalSent;
-          final lastRecv = _lastRecvBytes[profileId] ?? totalRecv;
-          final sentDiff = totalSent - lastSent;
-          final recvDiff = totalRecv - lastRecv;
-          upSpeed = (sentDiff > 0 ? sentDiff : 0) / elapsedSec;
-          downSpeed = (recvDiff > 0 ? recvDiff : 0) / elapsedSec;
+          final lastSent = _lastSentBytes[profileId] ?? parsed.totalSentBytes;
+          final lastRecv = _lastRecvBytes[profileId] ?? parsed.totalRecvBytes;
+          final sentDiff = parsed.totalSentBytes - lastSent;
+          final recvDiff = parsed.totalRecvBytes - lastRecv;
+          upSpeed = (sentDiff >= 0 ? sentDiff : 0) / elapsedSec;
+          downSpeed = (recvDiff >= 0 ? recvDiff : 0) / elapsedSec;
         }
       }
 
-      _lastSentBytes[profileId] = totalSent;
-      _lastRecvBytes[profileId] = totalRecv;
+      _lastSentBytes[profileId] = parsed.totalSentBytes;
+      _lastRecvBytes[profileId] = parsed.totalRecvBytes;
       _lastPollTime[profileId] = now;
 
       final snapshot = MetricsSnapshot(
         timestamp: now,
         uploadBytesPerSec: upSpeed,
         downloadBytesPerSec: downSpeed,
-        activeStreams: activeStreams,
-        totalConnections: activePeers,
-        rttMs: 0.0,
-        connectionType: 'Direct (P2P)',
+        activeStreams: parsed.activeStreams,
+        totalConnections: parsed.activePeers,
+        streamRejectionsTotal: parsed.streamRejectionsTotal,
       );
 
       final list = _history.putIfAbsent(profileId, () => []);
@@ -119,30 +206,33 @@ class MetricsService {
     }
   }
 
-  /// Polls Signal server metrics endpoint
-  Future<SignalMetricsSnapshot?> pollSignalMetrics(String listenAddr, [String? dedicatedMetricsAddr]) async {
-    Uri? url;
-    if (dedicatedMetricsAddr != null && dedicatedMetricsAddr.isNotEmpty) {
-      final clean = dedicatedMetricsAddr.startsWith(':') ? '127.0.0.1$dedicatedMetricsAddr' : dedicatedMetricsAddr;
-      url = Uri.parse('http://$clean/metrics');
+  /// Polls Signal server metrics endpoint, supporting both dedicated HTTP port and main TLS listener.
+  Future<SignalMetricsSnapshot?> pollSignalMetrics(
+    SignalServerConfig config,
+  ) async {
+    final Uri url;
+    final http.Client client;
+
+    if (config.metricsAddr.trim().isNotEmpty) {
+      final hostPort = SignalServerConfig.normalizeLoopbackHostPort(
+        config.metricsAddr,
+      );
+      url = Uri.parse('http://$hostPort/metrics');
+      client = _httpClient;
     } else {
-      final clean = listenAddr.startsWith(':') ? '127.0.0.1$listenAddr' : listenAddr;
-      url = Uri.parse('http://$clean/metrics');
+      final hostPort = SignalServerConfig.normalizeLoopbackHostPort(config.addr);
+      final scheme = config.usesTls ? 'https' : 'http';
+      url = Uri.parse('$scheme://$hostPort/metrics');
+      client = config.usesTls ? _insecureHttpsClient : _httpClient;
     }
 
     try {
-      final response = await http.get(url).timeout(const Duration(milliseconds: 1500));
+      final response = await client
+          .get(url)
+          .timeout(const Duration(milliseconds: 1500));
       if (response.statusCode != 200) return null;
 
-      final body = response.body;
-      final snapshot = SignalMetricsSnapshot(
-        timestamp: DateTime.now(),
-        registeredNodes: _extractMetricInt(body, 'webrtc_gateway_registered_nodes'),
-        activeClients: _extractMetricInt(body, 'webrtc_gateway_active_clients'),
-        signalingMessagesTotal: _extractMetricInt(body, 'webrtc_gateway_signaling_messages_total'),
-        ratelimitRejectedTotal: _extractMetricInt(body, 'webrtc_gateway_ratelimit_rejected_total'),
-      );
-
+      final snapshot = parseSignalMetrics(response.body);
       _latestSignalMetrics = snapshot;
       return snapshot;
     } catch (_) {
@@ -150,19 +240,33 @@ class MetricsService {
     }
   }
 
-  int _extractMetricInt(String body, String name, {String? labelFilter}) {
+  static int extractMetricInt(
+    String body,
+    String name, {
+    String? labelFilter,
+  }) {
     final lines = body.split('\n');
     for (final rawLine in lines) {
       final line = rawLine.trim();
       if (line.isEmpty || line.startsWith('#')) continue;
-      if (line.startsWith(name)) {
-        if (labelFilter != null && !line.contains(labelFilter)) {
-          continue;
-        }
-        final parts = line.split(RegExp(r'\s+'));
-        if (parts.length >= 2) {
-          return int.tryParse(parts.last) ?? 0;
-        }
+
+      final matchesExactName = line == name ||
+          line.startsWith('$name{') ||
+          line.startsWith('$name ') ||
+          line.startsWith('$name\t');
+      if (!matchesExactName) continue;
+
+      if (labelFilter != null && !line.contains(labelFilter)) {
+        continue;
+      }
+
+      final parts = line.split(RegExp(r'\s+'));
+      if (parts.length >= 2) {
+        final rawVal = parts.last;
+        final asInt = int.tryParse(rawVal);
+        if (asInt != null) return asInt;
+        final asDouble = double.tryParse(rawVal);
+        if (asDouble != null && asDouble.isFinite) return asDouble.round();
       }
     }
     return 0;
@@ -177,5 +281,10 @@ class MetricsService {
 
   void clearSignal() {
     _latestSignalMetrics = null;
+  }
+
+  void dispose() {
+    _httpClient.close();
+    _insecureHttpsClient.close();
   }
 }

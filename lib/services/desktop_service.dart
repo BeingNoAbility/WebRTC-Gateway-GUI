@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:tray_manager/tray_manager.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
+import '../core/i18n.dart';
 import '../models/app_settings.dart';
 import '../state/app_state.dart';
 
@@ -14,18 +17,28 @@ class DesktopService with TrayListener, WindowListener {
   final Connectivity _connectivity = Connectivity();
 
   static VoidCallback? onRequestClosePrompt;
+  static DesktopService? instance;
 
   int _lastRunningCount = -1;
   bool _lastSignalRunning = false;
   int _lastProfilesCount = -1;
+  String _lastLocale = '';
   bool _isUpdatingTray = false;
+  bool _trayIconInitialized = false;
+  String? _cachedTrayIconPath;
 
-  DesktopService(this.appState);
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  Timer? _networkHealTimer;
+  bool _wasOffline = false;
+  bool _hasSeenConnectivityEvent = false;
 
-  Future<void> init() async {
+  DesktopService(this.appState) {
+    instance = this;
+  }
+
+  Future<void> init({bool startMinimized = false}) async {
     if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) return;
 
-    // Window Manager setup
     try {
       await windowManager.ensureInitialized();
       const windowOptions = WindowOptions(
@@ -39,21 +52,23 @@ class DesktopService with TrayListener, WindowListener {
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
         await windowManager.setPreventClose(true);
-        await windowManager.show();
-        await windowManager.focus();
+        if (startMinimized) {
+          await windowManager.hide();
+        } else {
+          await windowManager.show();
+          await windowManager.focus();
+        }
       });
 
       windowManager.addListener(this);
     } catch (_) {}
 
-    // System Tray setup
     try {
       trayManager.addListener(this);
       await _updateTray();
       appState.addListener(_onAppStateChanged);
     } catch (_) {}
 
-    // Network Change Auto-Heal
     _setupNetworkWatcher();
   }
 
@@ -61,47 +76,72 @@ class DesktopService with TrayListener, WindowListener {
     final isSignalRunning = appState.isSignalRunning();
     final runningNodes = appState.runningCount;
     final profilesCount = appState.profiles.length;
+    final locale = AppI18n().currentLocale;
 
-    // Only update native Win32 tray when running status actually changes
     if (isSignalRunning == _lastSignalRunning &&
         runningNodes == _lastRunningCount &&
-        profilesCount == _lastProfilesCount) {
+        profilesCount == _lastProfilesCount &&
+        locale == _lastLocale) {
       return;
     }
 
     _lastSignalRunning = isSignalRunning;
     _lastRunningCount = runningNodes;
     _lastProfilesCount = profilesCount;
+    _lastLocale = locale;
 
-    _updateTray();
+    unawaited(_updateTray());
   }
 
   Future<String> _resolveTrayIconPath() async {
+    if (_cachedTrayIconPath != null) return _cachedTrayIconPath!;
+
     if (Platform.isWindows) {
       final exeDir = p.dirname(Platform.resolvedExecutable);
       final candidates = [
         p.join(exeDir, 'app_icon.ico'),
-        p.join(exeDir, 'data', 'flutter_assets', 'assets', 'icons', 'app_icon.ico'),
+        p.join(
+          exeDir,
+          'data',
+          'flutter_assets',
+          'assets',
+          'icons',
+          'app_icon.ico',
+        ),
         p.join(Directory.current.path, 'assets', 'icons', 'app_icon.ico'),
-        p.join(Directory.current.path, 'windows', 'runner', 'resources', 'app_icon.ico'),
+        p.join(
+          Directory.current.path,
+          'windows',
+          'runner',
+          'resources',
+          'app_icon.ico',
+        ),
       ];
-      for (final path in candidates) {
-        if (File(path).existsSync()) {
-          return path;
+      for (final candidate in candidates) {
+        if (File(candidate).existsSync()) {
+          _cachedTrayIconPath = candidate;
+          return candidate;
         }
       }
 
-      // If not found in standard paths, extract asset to temporary or app data file
       try {
         final byteData = await rootBundle.load('assets/icons/app_icon.ico');
         final tempDir = await getTemporaryDirectory();
         final file = File(p.join(tempDir.path, 'webrtc_gateway_tray.ico'));
-        await file.writeAsBytes(byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
+        await file.writeAsBytes(
+          byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          ),
+        );
+        _cachedTrayIconPath = file.path;
         return file.path;
       } catch (_) {}
-      return p.join(exeDir, 'app_icon.ico');
+      _cachedTrayIconPath = p.join(exeDir, 'app_icon.ico');
+      return _cachedTrayIconPath!;
     } else {
-      return 'assets/icons/tray_icon.png';
+      _cachedTrayIconPath = 'assets/icons/tray_icon.png';
+      return _cachedTrayIconPath!;
     }
   }
 
@@ -110,60 +150,55 @@ class DesktopService with TrayListener, WindowListener {
     _isUpdatingTray = true;
 
     try {
-      final iconPath = await _resolveTrayIconPath();
-      await trayManager.setIcon(iconPath);
+      if (!_trayIconInitialized) {
+        final iconPath = await _resolveTrayIconPath();
+        await trayManager.setIcon(iconPath);
+        _trayIconInitialized = true;
+      }
 
+      final isEn = AppI18n().currentLocale == 'en';
       final isSignalRunning = appState.isSignalRunning();
       final runningNodes = appState.runningCount;
-      final tooltip = isSignalRunning
-          ? 'WebRTC Gateway ($runningNodes 节点运行中 | 信令服务在线)'
-          : 'WebRTC Gateway ($runningNodes 节点运行中)';
+      final tooltip = isEn
+          ? (isSignalRunning
+              ? 'WebRTC Gateway ($runningNodes agents running | Signal online)'
+              : 'WebRTC Gateway ($runningNodes agents running)')
+          : (isSignalRunning
+              ? 'WebRTC Gateway ($runningNodes 节点运行中 | 信令服务在线)'
+              : 'WebRTC Gateway ($runningNodes 节点运行中)');
       await trayManager.setToolTip(tooltip);
 
+      // NOTE: Do NOT attach MenuItem.onClick here because tray_manager invokes BOTH
+      // MenuItem.onClick and TrayListener.onTrayMenuItemClick on every click.
       final menuItems = <MenuItem>[
         MenuItem(
           key: 'show',
-          label: '显示主窗口 (Show Window)',
-          onClick: (_) async {
-            await windowManager.show();
-            await windowManager.focus();
-          },
+          label: isEn ? 'Show Window' : '显示主窗口',
         ),
         MenuItem(
           key: 'hide',
-          label: '隐藏到托盘 (Hide to Tray)',
-          onClick: (_) async {
-            await windowManager.hide();
-          },
+          label: isEn ? 'Hide to Tray' : '隐藏到托盘',
         ),
         MenuItem.separator(),
         MenuItem(
           key: 'start_all',
-          label: '启动全部穿透节点 (${appState.profiles.length} 个)',
-          disabled: appState.profiles.isEmpty || runningNodes == appState.profiles.length,
-          onClick: (_) async {
-            await appState.startAllAgents();
-          },
+          label: isEn
+              ? 'Start All Agents (${appState.profiles.length})'
+              : '启动全部穿透节点 (${appState.profiles.length} 个)',
+          disabled: appState.profiles.isEmpty ||
+              runningNodes == appState.profiles.length,
         ),
         MenuItem(
           key: 'stop_all',
-          label: '停止全部穿透节点',
+          label: isEn ? 'Stop All Agents' : '停止全部穿透节点',
           disabled: runningNodes == 0,
-          onClick: (_) async {
-            await appState.stopAllAgents();
-          },
         ),
         MenuItem.separator(),
         MenuItem(
           key: 'toggle_signal',
-          label: isSignalRunning ? '停止信令服务 (Stop Signal)' : '启动信令服务 (Start Signal)',
-          onClick: (_) async {
-            if (appState.isSignalRunning()) {
-              await appState.stopSignalServer();
-            } else {
-              await appState.startSignalServer();
-            }
-          },
+          label: isSignalRunning
+              ? (isEn ? 'Stop Signal Server' : '停止信令服务')
+              : (isEn ? 'Start Signal Server' : '启动信令服务'),
         ),
       ];
 
@@ -171,17 +206,7 @@ class DesktopService with TrayListener, WindowListener {
         menuItems.add(
           MenuItem(
             key: 'open_web',
-            label: '打开 Web 门户控制台',
-            onClick: (_) async {
-              final url = appState.signalConfig.portalWebUrl;
-              if (Platform.isWindows) {
-                Process.run('cmd', ['/c', 'start', url]);
-              } else if (Platform.isMacOS) {
-                Process.run('open', [url]);
-              } else {
-                Process.run('xdg-open', [url]);
-              }
-            },
+            label: isEn ? 'Open Web Portal' : '打开 Web 门户控制台',
           ),
         );
       }
@@ -190,13 +215,7 @@ class DesktopService with TrayListener, WindowListener {
         MenuItem.separator(),
         MenuItem(
           key: 'exit',
-          label: '退出程序 (Exit)',
-          onClick: (_) async {
-            await appState.stopAllAgents();
-            await appState.stopSignalServer();
-            await windowManager.destroy();
-            exit(0);
-          },
+          label: isEn ? 'Exit' : '退出程序',
         ),
       ]);
 
@@ -209,24 +228,67 @@ class DesktopService with TrayListener, WindowListener {
   }
 
   void _setupNetworkWatcher() {
-    _connectivity.onConnectivityChanged.listen((results) async {
+    _connectivitySub = _connectivity.onConnectivityChanged.listen((results) {
       final isOnline = results.any((r) => r != ConnectivityResult.none);
-      if (isOnline) {
-        // Trigger auto-heal reconnect for agents
-        for (final p in appState.profiles) {
-          if (appState.isRunning(p.id)) {
-            // Hot reload or restart if connection was dropped
-            await appState.stopAgent(p.id);
-            await Future.delayed(const Duration(milliseconds: 500));
-            await appState.startAgent(p);
+      if (!_hasSeenConnectivityEvent) {
+        _hasSeenConnectivityEvent = true;
+        _wasOffline = !isOnline;
+        return;
+      }
+
+      if (!isOnline) {
+        _wasOffline = true;
+        _networkHealTimer?.cancel();
+        return;
+      }
+
+      // Only trigger auto-heal when transitioning back from an actual offline state,
+      // debounced so virtual/VPN adapters do not cause reconnect storms.
+      if (_wasOffline && isOnline) {
+        _wasOffline = false;
+        _networkHealTimer?.cancel();
+        _networkHealTimer = Timer(const Duration(seconds: 2), () async {
+          for (final profile in appState.profiles) {
+            if (appState.isRunning(profile.id)) {
+              appState.supervisor
+                  .getOrCreateState(profile.id)
+                  .addLog('[GUI] 检测到网络恢复上线，正在自动重连节点...');
+              await appState.stopAgent(profile.id);
+              await Future<void>.delayed(const Duration(milliseconds: 500));
+              await appState.startAgent(profile);
+            }
           }
-        }
+        });
       }
     });
   }
 
+  static Future<bool> openExternalUrl(String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return false;
+    }
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> shutdownAndExit() async {
+    await appState.shutdownForExit();
+    await dispose();
+    try {
+      await trayManager.destroy();
+    } catch (_) {}
+    try {
+      await windowManager.destroy();
+    } catch (_) {}
+    exit(0);
+  }
+
   @override
-  void onTrayIconMouseDown() async {
+  Future<void> onTrayIconMouseDown() async {
     final isVisible = await windowManager.isVisible();
     if (isVisible) {
       await windowManager.hide();
@@ -237,62 +299,42 @@ class DesktopService with TrayListener, WindowListener {
   }
 
   @override
-  void onTrayIconRightMouseDown() async {
-    // Windows: Show context menu on right click
+  Future<void> onTrayIconRightMouseDown() async {
     await trayManager.popUpContextMenu();
   }
 
   @override
-  void onTrayMenuItemClick(MenuItem menuItem) async {
+  Future<void> onTrayMenuItemClick(MenuItem menuItem) async {
     switch (menuItem.key) {
       case 'show':
         await windowManager.show();
         await windowManager.focus();
-        break;
       case 'hide':
         await windowManager.hide();
-        break;
       case 'start_all':
         await appState.startAllAgents();
-        break;
       case 'stop_all':
         await appState.stopAllAgents();
-        break;
       case 'toggle_signal':
         if (appState.isSignalRunning()) {
           await appState.stopSignalServer();
         } else {
           await appState.startSignalServer();
         }
-        break;
       case 'open_web':
-        final url = appState.signalConfig.portalWebUrl;
-        if (Platform.isWindows) {
-          Process.run('cmd', ['/c', 'start', url]);
-        } else if (Platform.isMacOS) {
-          Process.run('open', [url]);
-        } else {
-          Process.run('xdg-open', [url]);
-        }
-        break;
+        await openExternalUrl(appState.signalConfig.portalWebUrl);
       case 'exit':
-        await appState.stopAllAgents();
-        await appState.stopSignalServer();
-        await windowManager.destroy();
-        exit(0);
+        await shutdownAndExit();
     }
   }
 
   @override
-  void onWindowClose() async {
+  Future<void> onWindowClose() async {
     final action = appState.closeAction;
     if (action == CloseAction.minimizeToTray) {
       await windowManager.hide();
     } else if (action == CloseAction.exitApp) {
-      await appState.stopAllAgents();
-      await appState.stopSignalServer();
-      await windowManager.destroy();
-      exit(0);
+      await shutdownAndExit();
     } else {
       if (onRequestClosePrompt != null) {
         onRequestClosePrompt!();
@@ -302,7 +344,9 @@ class DesktopService with TrayListener, WindowListener {
     }
   }
 
-  void dispose() {
+  Future<void> dispose() async {
+    _networkHealTimer?.cancel();
+    await _connectivitySub?.cancel();
     appState.removeListener(_onAppStateChanged);
     trayManager.removeListener(this);
     windowManager.removeListener(this);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
@@ -7,78 +8,115 @@ import '../models/agent_profile.dart';
 import '../models/app_settings.dart';
 import '../models/signal_profile.dart';
 
+class ResolvedDataDir {
+  final Directory directory;
+  final bool isPortable;
+
+  const ResolvedDataDir(this.directory, this.isPortable);
+}
+
 class ConfigRepository {
+  final Directory? baseDirOverride;
+  final bool inMemory;
+
   List<AgentProfile> _profiles = [];
   SignalServerConfig _signalConfig = SignalServerConfig();
   AppSettings _settings = AppSettings();
   bool _isPortable = false;
+  String? _lastSaveError;
+  Future<void>? _activeSave;
+  bool _savePending = false;
+  Completer<void>? _flushCompleter;
 
-  List<AgentProfile> get profiles => List.unmodifiable(_profiles);
+  ConfigRepository({this.baseDirOverride, this.inMemory = false});
+
+  List<AgentProfile> get profiles => List<AgentProfile>.unmodifiable(_profiles);
   SignalServerConfig get signalConfig => _signalConfig;
   AppSettings get settings => _settings;
   bool get isPortable => _isPortable;
+  String? get lastSaveError => _lastSaveError;
 
-  /// Resolves portable data directory next to executable, or fallback
-  static Future<Directory> resolveDataDir() async {
+  /// Resolves portable data directory next to executable, or falls back to app support dir.
+  static Future<ResolvedDataDir> resolveDataDir() async {
     try {
       final exe = Platform.resolvedExecutable;
       final exeDir = File(exe).parent;
       final portableData = Directory(p.join(exeDir.path, 'data'));
 
-      // Check if writable
       if (!await portableData.exists()) {
         await portableData.create(recursive: true);
       }
       final testFile = File(p.join(portableData.path, '.test_perm'));
       await testFile.writeAsString('test');
       await testFile.delete();
-      return portableData;
+      return ResolvedDataDir(portableData, true);
     } catch (_) {
       try {
         final supportDir = await getApplicationSupportDirectory();
-        return supportDir;
+        if (!await supportDir.exists()) {
+          await supportDir.create(recursive: true);
+        }
+        return ResolvedDataDir(supportDir, false);
       } catch (_) {
-        return Directory.current;
+        return ResolvedDataDir(Directory.current, false);
       }
     }
   }
 
   Future<File> _getConfigFile() async {
-    final dir = await resolveDataDir();
-    _isPortable = !dir.path.contains('AppData') && !dir.path.contains('.config');
-    return File(p.join(dir.path, 'webrtc_gateway_config.json'));
+    if (baseDirOverride != null) {
+      _isPortable = true;
+      return File(p.join(baseDirOverride!.path, 'webrtc_gateway_config.json'));
+    }
+    final resolved = await resolveDataDir();
+    _isPortable = resolved.isPortable;
+    return File(p.join(resolved.directory.path, 'webrtc_gateway_config.json'));
   }
 
-  /// Initializes and loads saved full configurations, or seeds with defaults
+  /// Initializes and loads saved full configurations, or seeds with defaults.
   Future<void> init() async {
-    try {
-      final file = await _getConfigFile();
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        final dynamic decoded = jsonDecode(content);
+    if (!inMemory) {
+      try {
+        final file = await _getConfigFile();
+        if (await file.exists()) {
+          final content = await file.readAsString();
+          final dynamic decoded = jsonDecode(content);
 
-        if (decoded is Map<String, dynamic>) {
-          // Modern full configuration bundle
-          if (decoded.containsKey('settings')) {
-            _settings = AppSettings.fromJson(decoded['settings'] as Map<String, dynamic>);
+          if (decoded is Map<String, dynamic>) {
+            if (decoded['settings'] is Map<String, dynamic>) {
+              _settings = AppSettings.fromJson(
+                decoded['settings'] as Map<String, dynamic>,
+              );
+            }
+            if (decoded['signal'] is Map<String, dynamic>) {
+              _signalConfig = SignalServerConfig.fromJson(
+                decoded['signal'] as Map<String, dynamic>,
+              );
+            }
+            if (decoded['agents'] is List<dynamic>) {
+              final list = decoded['agents'] as List<dynamic>;
+              _profiles = list
+                  .whereType<Map<String, dynamic>>()
+                  .map(AgentProfile.fromJson)
+                  .toList();
+            }
+          } else if (decoded is List<dynamic>) {
+            _profiles = decoded
+                .whereType<Map<String, dynamic>>()
+                .map(AgentProfile.fromJson)
+                .toList();
           }
-          if (decoded.containsKey('signal')) {
-            _signalConfig = SignalServerConfig.fromJson(decoded['signal'] as Map<String, dynamic>);
-          }
-          if (decoded.containsKey('agents')) {
-            final List<dynamic> list = decoded['agents'] as List<dynamic>;
-            _profiles = list.map((e) => AgentProfile.fromJson(e as Map<String, dynamic>)).toList();
-          }
-        } else if (decoded is List<dynamic>) {
-          // Legacy profiles array compatibility
-          _profiles = decoded.map((e) => AgentProfile.fromJson(e as Map<String, dynamic>)).toList();
         }
+      } catch (_) {
+        // Keep defaults if config is corrupted or unreadable
       }
-    } catch (_) {}
+    }
 
     if (_profiles.isEmpty) {
       _seedDefaultProfiles();
-      await save();
+      if (!inMemory) {
+        await save();
+      }
     }
   }
 
@@ -91,13 +129,47 @@ class ConfigRepository {
         mode: TunnelMode.target,
         target: 'http://127.0.0.1:8080',
         signalUrl: 'ws://127.0.0.1:8888/ws',
+        allowPublic: false,
         maxTrunks: 4,
       ),
     ];
   }
 
-  /// Saves the complete bundle into portable config file
-  Future<void> save() async {
+  /// Coalesces concurrent save requests and writes atomically in sequence.
+  Future<void> save() {
+    if (inMemory) return Future<void>.value();
+    if (_activeSave != null) {
+      _savePending = true;
+      return _activeSave!;
+    }
+    final completer = _flushCompleter ??= Completer<void>();
+    _activeSave = _drainSaveQueue().whenComplete(() {
+      _activeSave = null;
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      if (_flushCompleter == completer) {
+        _flushCompleter = null;
+      }
+    });
+    return _activeSave!;
+  }
+
+  Future<void> _drainSaveQueue() async {
+    do {
+      _savePending = false;
+      await _performAtomicSave();
+    } while (_savePending);
+  }
+
+  /// Waits for all queued writes to finish.
+  Future<void> flush() async {
+    while (_activeSave != null) {
+      await _activeSave;
+    }
+  }
+
+  Future<void> _performAtomicSave() async {
     try {
       final file = await _getConfigFile();
       if (!await file.parent.exists()) {
@@ -112,47 +184,64 @@ class ConfigRepository {
         'agents': _profiles.map((p) => p.toJson()).toList(),
       };
 
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(bundle));
-    } catch (_) {}
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(bundle);
+      final tempFile = File('${file.path}.tmp');
+      await tempFile.writeAsString(jsonStr, flush: true);
+      if (await file.exists()) {
+        try {
+          await tempFile.rename(file.path);
+        } catch (_) {
+          // Some filesystems do not overwrite on rename; fallback to write directly
+          await file.writeAsString(jsonStr, flush: true);
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        }
+      } else {
+        await tempFile.rename(file.path);
+      }
+      _lastSaveError = null;
+    } catch (e) {
+      _lastSaveError = e.toString();
+    }
   }
 
   void addProfile(AgentProfile profile) {
     _profiles.add(profile);
-    save();
+    unawaited(save());
   }
 
   void updateProfile(AgentProfile profile) {
     final idx = _profiles.indexWhere((p) => p.id == profile.id);
     if (idx != -1) {
       _profiles[idx] = profile;
-      save();
+      unawaited(save());
     }
   }
 
   void removeProfile(String id) {
     _profiles.removeWhere((p) => p.id == id);
-    save();
+    unawaited(save());
   }
 
   AgentProfile? getById(String id) {
-    try {
-      return _profiles.firstWhere((p) => p.id == id);
-    } catch (_) {
-      return null;
+    for (final profile in _profiles) {
+      if (profile.id == id) return profile;
     }
+    return null;
   }
 
   void updateSignalConfig(SignalServerConfig config) {
     _signalConfig = config;
-    save();
+    unawaited(save());
   }
 
   void updateSettings(AppSettings settings) {
     _settings = settings;
-    save();
+    unawaited(save());
   }
 
-  /// Exports all configuration (agents, signal, settings)
+  /// Exports all configuration (agents, signal, settings).
   Future<void> exportAllToFile(String targetPath) async {
     final file = File(targetPath);
     final bundle = {
@@ -164,58 +253,94 @@ class ConfigRepository {
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(bundle));
   }
 
-  /// Exports only agent profiles
+  /// Exports only agent profiles.
   Future<void> exportAgentsToFile(String targetPath) async {
     final file = File(targetPath);
     final jsonList = _profiles.map((p) => p.toJson()).toList();
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(jsonList));
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(jsonList),
+    );
   }
 
-  /// Exports only signal server config
+  /// Exports only signal server config.
   Future<void> exportSignalToFile(String targetPath) async {
     final file = File(targetPath);
     final jsonMap = _signalConfig.toJson();
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(jsonMap));
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(jsonMap),
+    );
   }
 
-  /// Exports profile in standard upstream agent.yaml format
-  Future<void> exportUpstreamAgentYaml(String profileId, String targetPath) async {
+  /// Exports profile in standard upstream agent.yaml format.
+  Future<void> exportUpstreamAgentYaml(
+    String profileId,
+    String targetPath,
+  ) async {
     final profile = getById(profileId);
     if (profile == null) return;
     final file = File(targetPath);
     await file.writeAsString(profile.toYamlString());
   }
 
-  /// Exports signal config in standard upstream server.yaml format
+  /// Exports signal config in standard upstream server.yaml format.
   Future<void> exportUpstreamSignalYaml(String targetPath) async {
     final file = File(targetPath);
     await file.writeAsString(_signalConfig.toYamlString());
   }
 
-  /// Imports from file and returns summary (supports upstream agent.yaml / server.yaml and JSON)
+  dynamic _toPlainDart(dynamic value) {
+    if (value is YamlMap || value is Map) {
+      final result = <String, dynamic>{};
+      final map = value as Map<dynamic, dynamic>;
+      map.forEach((k, v) {
+        result[k.toString()] = _toPlainDart(v);
+      });
+      return result;
+    }
+    if (value is YamlList || value is List) {
+      return (value as List<dynamic>).map(_toPlainDart).toList();
+    }
+    return value;
+  }
+
+  /// Imports from file and returns summary (supports upstream agent.yaml / server.yaml and JSON).
+  ///
+  /// Throws [FormatException] if the file is empty or cannot be parsed.
   Future<Map<String, dynamic>> importFromFile(String filePath) async {
     final file = File(filePath);
     final content = await file.readAsString();
-    final dynamic decoded = loadYaml(content);
+    if (content.trim().isEmpty) {
+      throw const FormatException('配置文件内容为空');
+    }
 
-    int agentCount = 0;
-    bool signalImported = false;
-    bool settingsImported = false;
-    String detectedType = 'unknown';
+    final dynamic rawDecoded = loadYaml(content);
+    final dynamic decoded = _toPlainDart(rawDecoded);
 
-    if (decoded is Map) {
+    var agentCount = 0;
+    var signalImported = false;
+    var settingsImported = false;
+    var detectedType = 'unknown';
+
+    if (decoded is Map<String, dynamic>) {
       // 1. Upstream Agent config (e.g. agent.example.yaml or agent.yaml)
       if (decoded.containsKey('signal') &&
+          decoded['signal'] is! Map &&
           (decoded.containsKey('target') ||
               decoded.containsKey('dir') ||
               decoded.containsKey('file') ||
               decoded.containsKey('node_id'))) {
-        final profile = AgentProfile.fromUpstreamMap(decoded);
-        final idx = _profiles.indexWhere((p) => p.nodeId == profile.nodeId);
+        final imported = AgentProfile.fromUpstreamMap(decoded);
+        final idx = _profiles.indexWhere((p) => p.nodeId == imported.nodeId);
         if (idx != -1) {
-          _profiles[idx] = profile;
+          final existing = _profiles[idx];
+          _profiles[idx] = imported.copyWith(
+            id: existing.id,
+            name: existing.name,
+            autoStart: existing.autoStart,
+            customBinaryPath: existing.customBinaryPath,
+          );
         } else {
-          _profiles.add(profile);
+          _profiles.add(imported);
         }
         agentCount++;
         detectedType = 'upstream_agent';
@@ -233,12 +358,14 @@ class ConfigRepository {
       }
       // 3. Modern GUI configuration bundle
       else {
-        if (decoded.containsKey('agents') && decoded['agents'] is List) {
-          final List<dynamic> list = decoded['agents'] as List<dynamic>;
+        if (decoded['agents'] is List) {
+          final list = decoded['agents'] as List<dynamic>;
           for (final item in list) {
-            if (item is Map) {
-              final profile = AgentProfile.fromJson(Map<String, dynamic>.from(item));
-              final idx = _profiles.indexWhere((p) => p.id == profile.id || p.nodeId == profile.nodeId);
+            if (item is Map<String, dynamic>) {
+              final profile = AgentProfile.fromJson(item);
+              final idx = _profiles.indexWhere(
+                (p) => p.id == profile.id || p.nodeId == profile.nodeId,
+              );
               if (idx != -1) {
                 _profiles[idx] = profile;
               } else {
@@ -250,22 +377,27 @@ class ConfigRepository {
           detectedType = 'bundle';
         }
 
-        if (decoded.containsKey('signal') && decoded['signal'] is Map) {
-          _signalConfig = SignalServerConfig.fromJson(Map<String, dynamic>.from(decoded['signal'] as Map));
+        if (decoded['signal'] is Map<String, dynamic>) {
+          _signalConfig = SignalServerConfig.fromJson(
+            decoded['signal'] as Map<String, dynamic>,
+          );
           signalImported = true;
         }
 
-        if (decoded.containsKey('settings') && decoded['settings'] is Map) {
-          _settings = AppSettings.fromJson(Map<String, dynamic>.from(decoded['settings'] as Map));
+        if (decoded['settings'] is Map<String, dynamic>) {
+          _settings = AppSettings.fromJson(
+            decoded['settings'] as Map<String, dynamic>,
+          );
           settingsImported = true;
         }
       }
-    } else if (decoded is List) {
-      // Agent profiles list
+    } else if (decoded is List<dynamic>) {
       for (final item in decoded) {
-        if (item is Map) {
-          final profile = AgentProfile.fromJson(Map<String, dynamic>.from(item));
-          final idx = _profiles.indexWhere((p) => p.id == profile.id || p.nodeId == profile.nodeId);
+        if (item is Map<String, dynamic>) {
+          final profile = AgentProfile.fromJson(item);
+          final idx = _profiles.indexWhere(
+            (p) => p.id == profile.id || p.nodeId == profile.nodeId,
+          );
           if (idx != -1) {
             _profiles[idx] = profile;
           } else {
@@ -275,6 +407,8 @@ class ConfigRepository {
         }
       }
       detectedType = 'agent_list';
+    } else {
+      throw const FormatException('无法识别的配置文件结构，仅支持 YAML/JSON 格式');
     }
 
     await save();

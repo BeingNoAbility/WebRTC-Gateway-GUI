@@ -1,7 +1,19 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+
 enum TunnelMode {
   target,
   dir,
   file,
+}
+
+String _yamlDoubleQuoteEscape(String value) {
+  return value
+      .replaceAll('\\', r'\\')
+      .replaceAll('"', r'\"')
+      .replaceAll('\r', r'\r')
+      .replaceAll('\n', r'\n')
+      .replaceAll('\t', r'\t');
 }
 
 class AgentProfile {
@@ -43,7 +55,7 @@ class AgentProfile {
     this.signalUrl = 'ws://127.0.0.1:8888/ws',
     this.signalSecret = '',
     this.accessSecret = '',
-    this.allowPublic = true,
+    this.allowPublic = false,
     this.allowedProxyDomains = '',
     this.portalUrl = '',
     this.signLink = '',
@@ -59,10 +71,11 @@ class AgentProfile {
     this.sni = '',
     this.customBinaryPath,
     this.autoStart = false,
-  }) : stunServers = stunServers ?? [
-          'stun:stun.l.google.com:19302',
-          'stun:stun1.l.google.com:19302',
-        ];
+  }) : stunServers = stunServers ??
+            [
+              'stun:stun.l.google.com:19302',
+              'stun:stun1.l.google.com:19302',
+            ];
 
   AgentProfile copyWith({
     String? id,
@@ -90,6 +103,7 @@ class AgentProfile {
     String? proxy,
     String? sni,
     String? customBinaryPath,
+    bool clearCustomBinaryPath = false,
     bool? autoStart,
   }) {
     return AgentProfile(
@@ -109,7 +123,7 @@ class AgentProfile {
       signLink: signLink ?? this.signLink,
       maxTrunks: maxTrunks ?? this.maxTrunks,
       maxStreams: maxStreams ?? this.maxStreams,
-      stunServers: stunServers ?? List.from(this.stunServers),
+      stunServers: stunServers ?? List<String>.from(this.stunServers),
       turnUrl: turnUrl ?? this.turnUrl,
       turnUser: turnUser ?? this.turnUser,
       turnPass: turnPass ?? this.turnPass,
@@ -117,7 +131,9 @@ class AgentProfile {
       insecureTarget: insecureTarget ?? this.insecureTarget,
       proxy: proxy ?? this.proxy,
       sni: sni ?? this.sni,
-      customBinaryPath: customBinaryPath ?? this.customBinaryPath,
+      customBinaryPath: clearCustomBinaryPath
+          ? null
+          : (customBinaryPath ?? this.customBinaryPath),
       autoStart: autoStart ?? this.autoStart,
     );
   }
@@ -151,21 +167,28 @@ class AgentProfile {
         'auto_start': autoStart,
       };
 
-  factory AgentProfile.fromUpstreamMap(Map<dynamic, dynamic> map, {String? defaultName}) {
+  factory AgentProfile.fromUpstreamMap(
+    Map<dynamic, dynamic> map, {
+    String? defaultName,
+  }) {
     final nodeId = (map['node_id'] ?? 'homeserver').toString();
     final signal = (map['signal'] ?? 'ws://127.0.0.1:8888/ws').toString();
     final signalSecret = (map['signal_secret'] ?? '').toString();
     final accessSecret = (map['access_secret'] ?? '').toString();
 
-    TunnelMode mode = TunnelMode.target;
-    String target = 'http://127.0.0.1:8080';
-    String dirPath = '';
-    String filePath = '';
+    var mode = TunnelMode.target;
+    var target = 'http://127.0.0.1:8080';
+    var dirPath = '';
+    var filePath = '';
 
-    if (map.containsKey('dir') && map['dir'] != null && map['dir'].toString().isNotEmpty) {
+    if (map.containsKey('dir') &&
+        map['dir'] != null &&
+        map['dir'].toString().isNotEmpty) {
       mode = TunnelMode.dir;
       dirPath = map['dir'].toString();
-    } else if (map.containsKey('file') && map['file'] != null && map['file'].toString().isNotEmpty) {
+    } else if (map.containsKey('file') &&
+        map['file'] != null &&
+        map['file'].toString().isNotEmpty) {
       mode = TunnelMode.file;
       filePath = map['file'].toString();
     } else if (map.containsKey('target') && map['target'] != null) {
@@ -178,26 +201,39 @@ class AgentProfile {
     final insecure = map['insecure'] == true;
     final insecureTarget = map['insecure_target'] == true;
 
-    List<String> stunList = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'];
+    var stunList = <String>[
+      'stun:stun.l.google.com:19302',
+      'stun:stun1.l.google.com:19302',
+    ];
     if (map['stun_servers'] != null) {
       if (map['stun_servers'] is List) {
-        stunList = (map['stun_servers'] as List).map((e) => e.toString()).toList();
+        stunList = (map['stun_servers'] as List<dynamic>)
+            .map((e) => e.toString())
+            .where((e) => e.trim().isNotEmpty)
+            .toList();
       } else if (map['stun_servers'] is String) {
-        stunList = map['stun_servers'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        stunList = map['stun_servers']
+            .toString()
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
     }
 
     final turnUrl = (map['turn_url'] ?? '').toString();
     final turnUser = (map['turn_user'] ?? '').toString();
     final turnPass = (map['turn_pass'] ?? '').toString();
-    final maxStreams = (map['max_streams'] as num?)?.toInt() ?? 512;
-    final maxTrunks = (map['max_trunks'] as num?)?.toInt() ?? 4;
+    final maxStreams = ((map['max_streams'] as num?)?.toInt() ?? 512).clamp(1, 65535);
+    final maxTrunks = ((map['max_trunks'] as num?)?.toInt() ?? 4).clamp(1, 8);
     final portalUrl = (map['portal_url'] ?? '').toString();
 
-    String allowedProxyDomains = '';
+    var allowedProxyDomains = '';
     if (map['allowed_proxy_domains'] != null) {
       if (map['allowed_proxy_domains'] is List) {
-        allowedProxyDomains = (map['allowed_proxy_domains'] as List).map((e) => e.toString()).join(',');
+        allowedProxyDomains = (map['allowed_proxy_domains'] as List<dynamic>)
+            .map((e) => e.toString())
+            .join(',');
       } else {
         allowedProxyDomains = map['allowed_proxy_domains'].toString();
       }
@@ -231,8 +267,11 @@ class AgentProfile {
   }
 
   factory AgentProfile.fromJson(Map<String, dynamic> json) {
+    final accessSecret = json['access_secret'] as String? ?? '';
+    final hasAllowPublic = json.containsKey('allow_public');
     return AgentProfile(
-      id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: json['id'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       name: json['name'] as String? ?? 'Agent',
       nodeId: json['node_id'] as String? ?? 'homeserver',
       mode: TunnelMode.values.firstWhere(
@@ -244,15 +283,18 @@ class AgentProfile {
       filePath: json['file_path'] as String? ?? '',
       signalUrl: json['signal'] as String? ?? 'ws://127.0.0.1:8888/ws',
       signalSecret: json['signal_secret'] as String? ?? '',
-      accessSecret: json['access_secret'] as String? ?? '',
-      allowPublic: json['allow_public'] as bool? ?? true,
+      accessSecret: accessSecret,
+      allowPublic: hasAllowPublic
+          ? (json['allow_public'] as bool? ?? false)
+          : accessSecret.isEmpty,
       allowedProxyDomains: json['allowed_proxy_domains'] as String? ?? '',
       portalUrl: json['portal_url'] as String? ?? '',
       signLink: json['sign_link'] as String? ?? '',
-      maxTrunks: (json['max_trunks'] as num?)?.toInt() ?? 4,
-      maxStreams: (json['max_streams'] as num?)?.toInt() ?? 512,
+      maxTrunks: ((json['max_trunks'] as num?)?.toInt() ?? 4).clamp(1, 8),
+      maxStreams: ((json['max_streams'] as num?)?.toInt() ?? 512).clamp(1, 65535),
       stunServers: (json['stun_servers'] as List<dynamic>?)
               ?.map((e) => e.toString())
+              .where((e) => e.trim().isNotEmpty)
               .toList() ??
           ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
       turnUrl: json['turn_url'] as String? ?? '',
@@ -267,52 +309,59 @@ class AgentProfile {
     );
   }
 
-  /// Converts profile to WebRTC-Gateway YAML config compatible with agent.yaml
+  /// Validates whether [input] conforms to Go `time.ParseDuration` syntax (positive).
+  static bool isValidGoDuration(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return true;
+    final regex = RegExp(r'^(?:\d+(?:\.\d+)?(?:ns|us|µs|μs|ms|s|m|h))+$');
+    return regex.hasMatch(trimmed);
+  }
+
+  /// Converts profile to WebRTC-Gateway YAML config compatible with agent.yaml.
   String toYamlString({int? metricsPort}) {
     final sb = StringBuffer();
     sb.writeln('# Auto-generated WebRTC Gateway Agent Config');
-    sb.writeln('node_id: "$nodeId"');
-    sb.writeln('signal: "$signalUrl"');
+    sb.writeln('node_id: "${_yamlDoubleQuoteEscape(nodeId)}"');
+    sb.writeln('signal: "${_yamlDoubleQuoteEscape(signalUrl)}"');
     if (signalSecret.isNotEmpty) {
-      sb.writeln('signal_secret: "$signalSecret"');
+      sb.writeln('signal_secret: "${_yamlDoubleQuoteEscape(signalSecret)}"');
     }
-    if (accessSecret.isNotEmpty) {
-      sb.writeln('access_secret: "$accessSecret"');
-    } else {
-      sb.writeln('allow_public: true');
-    }
-    
+    sb.writeln('access_secret: "${_yamlDoubleQuoteEscape(accessSecret)}"');
+
     switch (mode) {
       case TunnelMode.target:
-        sb.writeln('target: "$target"');
-        break;
+        sb.writeln('target: "${_yamlDoubleQuoteEscape(target)}"');
       case TunnelMode.dir:
-        sb.writeln('dir: "$dirPath"');
-        break;
+        sb.writeln('dir: "${_yamlDoubleQuoteEscape(dirPath)}"');
       case TunnelMode.file:
-        sb.writeln('file: "$filePath"');
-        break;
+        sb.writeln('file: "${_yamlDoubleQuoteEscape(filePath)}"');
     }
 
     if (allowedProxyDomains.isNotEmpty) {
-      sb.writeln('allowed_proxy_domains: "$allowedProxyDomains"');
+      sb.writeln(
+        'allowed_proxy_domains: "${_yamlDoubleQuoteEscape(allowedProxyDomains)}"',
+      );
     }
-    if (proxy.isNotEmpty) sb.writeln('proxy: "$proxy"');
-    if (sni.isNotEmpty) sb.writeln('sni: "$sni"');
+    if (proxy.isNotEmpty) {
+      sb.writeln('proxy: "${_yamlDoubleQuoteEscape(proxy)}"');
+    }
+    if (sni.isNotEmpty) {
+      sb.writeln('sni: "${_yamlDoubleQuoteEscape(sni)}"');
+    }
     if (insecure) sb.writeln('insecure: true');
     if (insecureTarget) sb.writeln('insecure_target: true');
     sb.writeln('max_trunks: $maxTrunks');
     sb.writeln('max_streams: $maxStreams');
-    
+
     sb.writeln('stun_servers:');
     for (final s in stunServers) {
-      sb.writeln('  - "$s"');
+      sb.writeln('  - "${_yamlDoubleQuoteEscape(s)}"');
     }
 
     if (turnUrl.isNotEmpty) {
-      sb.writeln('turn_url: "$turnUrl"');
-      sb.writeln('turn_user: "$turnUser"');
-      sb.writeln('turn_pass: "$turnPass"');
+      sb.writeln('turn_url: "${_yamlDoubleQuoteEscape(turnUrl)}"');
+      sb.writeln('turn_user: "${_yamlDoubleQuoteEscape(turnUser)}"');
+      sb.writeln('turn_pass: "${_yamlDoubleQuoteEscape(turnPass)}"');
     }
 
     if (metricsPort != null) {
@@ -320,45 +369,140 @@ class AgentProfile {
     }
 
     if (portalUrl.isNotEmpty) {
-      sb.writeln('portal_url: "$portalUrl"');
+      sb.writeln('portal_url: "${_yamlDoubleQuoteEscape(portalUrl)}"');
     }
 
     return sb.toString();
   }
 
-  /// Computes the direct Web Portal visit link
-  String get directPortalUrl {
-    if (portalUrl.isNotEmpty) {
-      final base = portalUrl.endsWith('/') ? portalUrl.substring(0, portalUrl.length - 1) : portalUrl;
-      return '$base/#$nodeId';
+  /// Resolves base Web Portal URL (without `#nodeId`), normalizing wildcard bind hosts.
+  String get resolvedPortalBaseUrl {
+    if (portalUrl.trim().isNotEmpty) {
+      final raw = portalUrl.trim();
+      return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
     }
     try {
       final uri = Uri.parse(signalUrl);
-      final scheme = uri.scheme == 'wss' ? 'https' : 'http';
-      final portStr = (uri.port != 80 && uri.port != 443 && uri.port != 0) ? ':${uri.port}' : '';
-      return '$scheme://${uri.host}$portStr/#$nodeId';
+      final scheme =
+          (uri.scheme == 'wss' || uri.scheme == 'https') ? 'https' : 'http';
+      var host = uri.host;
+      if (host.isEmpty || host == '0.0.0.0' || host == '::' || host == '[::]') {
+        host = '127.0.0.1';
+      } else if (host.contains(':') && !host.startsWith('[')) {
+        host = '[$host]';
+      }
+      final portStr =
+          (uri.hasPort && uri.port != 80 && uri.port != 443 && uri.port != 0)
+              ? ':${uri.port}'
+              : '';
+      return '$scheme://$host$portStr';
     } catch (_) {
-      return 'http://127.0.0.1:8888/#$nodeId';
+      return 'http://127.0.0.1:8888';
     }
   }
 
-  /// Generates human-friendly formatted share card for clipboard
-  String formatShareCard({int? expireHours}) {
+  /// Computes the direct Web Portal visit link.
+  String get directPortalUrl => '$resolvedPortalBaseUrl/#$nodeId';
+
+  /// Generates an upstream-compatible HMAC-SHA256 signed share link (matching `pkg/agent/auth.go`).
+  ///
+  /// When [accessSecret] is empty and [overrideSecret] is not provided, returns [directPortalUrl]
+  /// because no visitor authentication secret is configured on the node.
+  String generateSignedShareUrl({
+    required Duration duration,
+    String? overrideSecret,
+    DateTime? now,
+  }) {
+    final effectiveSecret =
+        (overrideSecret != null && overrideSecret.isNotEmpty)
+            ? overrideSecret
+            : accessSecret;
+    if (effectiveSecret.isEmpty) {
+      return directPortalUrl;
+    }
+    final current = now ?? DateTime.now();
+    final exp = current.add(duration).millisecondsSinceEpoch ~/ 1000;
+    final sign = computeShareSignature(
+      nodeId: nodeId,
+      exp: exp,
+      secret: effectiveSecret,
+    );
+    return '$resolvedPortalBaseUrl/#$nodeId?exp=$exp&sign=$sign';
+  }
+
+  /// Computes HMAC-SHA256 hex signature over `"$nodeId:$exp"` using [secret].
+  static String computeShareSignature({
+    required String nodeId,
+    required int exp,
+    required String secret,
+  }) {
+    final hmacSha256 = Hmac(sha256, utf8.encode(secret));
+    final digest = hmacSha256.convert(utf8.encode('$nodeId:$exp'));
+    return digest.toString();
+  }
+
+  bool get isPublicMode => accessSecret.isEmpty;
+
+  /// Generates human-friendly formatted share card for clipboard.
+  String formatShareCard({
+    int? expireHours,
+    String? shareUrl,
+    bool includePassword = false,
+    bool isEnglish = false,
+  }) {
+    final resolvedUrl = shareUrl ??
+        ((expireHours != null && accessSecret.isNotEmpty)
+            ? generateSignedShareUrl(duration: Duration(hours: expireHours))
+            : directPortalUrl);
+
     final sb = StringBuffer();
-    sb.writeln('🌐 【WebRTC Gateway 直连穿透服务】');
-    sb.writeln('----------------------------------------');
-    sb.writeln('📌 节点名称: $name ($nodeId)');
-    sb.writeln('🔗 访问地址: $directPortalUrl');
-    if (accessSecret.isNotEmpty) {
-      sb.writeln('🔑 访问密码: $accessSecret');
+    if (isEnglish) {
+      sb.writeln('🌐 [WebRTC Gateway Direct Tunnel]');
+      sb.writeln('----------------------------------------');
+      sb.writeln('📌 Node: $name ($nodeId)');
+      sb.writeln('🔗 Access URL: $resolvedUrl');
+      if (accessSecret.isNotEmpty) {
+        if (includePassword) {
+          sb.writeln('🔑 Access Password: $accessSecret');
+        } else if (expireHours != null || resolvedUrl.contains('sign=')) {
+          sb.writeln('🔐 Auth: Pre-authorized signed link (no password input needed)');
+        } else {
+          sb.writeln('🔐 Auth: Password protected (ask owner for password)');
+        }
+      } else {
+        sb.writeln('⚠️ Access Mode: Public (no password required)');
+      }
+      if (expireHours != null && (accessSecret.isNotEmpty || resolvedUrl.contains('sign='))) {
+        sb.writeln('⏳ Valid For: $expireHours hours');
+      }
+      sb.writeln(
+        '💡 Tip: No client needed. Open the link in any modern browser (Chrome/Edge/Safari/Firefox).',
+      );
+      sb.writeln('----------------------------------------');
     } else {
-      sb.writeln('🔑 访问密码: (公开访问，无需密码)');
+      sb.writeln('🌐 【WebRTC Gateway 直连穿透服务】');
+      sb.writeln('----------------------------------------');
+      sb.writeln('📌 节点名称: $name ($nodeId)');
+      sb.writeln('🔗 访问地址: $resolvedUrl');
+      if (accessSecret.isNotEmpty) {
+        if (includePassword) {
+          sb.writeln('🔑 访问密码: $accessSecret');
+        } else if (expireHours != null || resolvedUrl.contains('sign=')) {
+          sb.writeln('🔐 访问鉴权: 已内嵌时效数字签名，免输密码直接连通');
+        } else {
+          sb.writeln('🔐 访问鉴权: 已启用密码保护（请向分享者获取访问密码）');
+        }
+      } else {
+        sb.writeln('⚠️ 访问方式: 公开免密访问（请注意访问风险）');
+      }
+      if (expireHours != null && (accessSecret.isNotEmpty || resolvedUrl.contains('sign='))) {
+        sb.writeln('⏳ 有效时限: $expireHours 小时内有效');
+      }
+      sb.writeln(
+        '💡 提示: 无需安装任何客户端，使用现代浏览器 (Chrome/Edge/Safari/Firefox) 打开链接即可高速直连访问。',
+      );
+      sb.writeln('----------------------------------------');
     }
-    if (expireHours != null) {
-      sb.writeln('⏳ 有效时限: $expireHours 小时内有效');
-    }
-    sb.writeln('💡 提示: 无需安装任何客户端，使用现代浏览器 (Chrome/Edge/Safari/Firefox) 打开链接即可高速直连访问。');
-    sb.writeln('----------------------------------------');
     return sb.toString();
   }
 }
