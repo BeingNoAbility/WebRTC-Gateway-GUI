@@ -25,21 +25,15 @@ jobs:
           - os: windows-latest
             platform: windows
             goos: windows
-            goarch: amd64
             bin_ext: .exe
-            archive_ext: zip
           - os: ubuntu-latest
             platform: linux
             goos: linux
-            goarch: amd64
             bin_ext: ''
-            archive_ext: tar.gz
           - os: macos-latest
             platform: macos
             goos: darwin
-            goarch: arm64
             bin_ext: ''
-            archive_ext: zip
 
     steps:
       - name: Checkout Code
@@ -55,7 +49,14 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            liblzma-dev \
+            libayatana-appindicator3-dev
 
       - name: Install Flutter Dependencies
         run: flutter pub get
@@ -63,17 +64,33 @@ jobs:
       - name: Run Static Analysis & Tests
         run: |
           flutter analyze
-          flutter test
+          flutter test -r expanded
 
-      - name: Determine Version Tag
+      - name: Determine Version Tag and Target Arch
         id: vars
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
+
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            GOARCH="amd64"
+          else
+            UNAME_ARCH=$(uname -m)
+            case "$UNAME_ARCH" in
+              x86_64|amd64) GOARCH="amd64" ;;
+              arm64|aarch64) GOARCH="arm64" ;;
+              *)
+                echo "Unsupported runner arch: $UNAME_ARCH"
+                exit 1
+                ;;
+            esac
+          fi
+          echo "goarch=$GOARCH" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=${{ github.ref_name }} goarch=$GOARCH"
 
       - name: Fetch and Bundle Latest Upstream WebRTC-Gateway Binaries
         id: fetch-binaries
@@ -81,14 +98,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          GOARCH="${{ steps.vars.outputs.goarch }}"
           mkdir -p bin_upstream bin_extract bin
 
-          echo "Fetching latest release archive from BeingNoAbility/WebRTC-Gateway matching ${{ matrix.goos }}_${{ matrix.goarch }}..."
-          gh release download --repo BeingNoAbility/WebRTC-Gateway --pattern "*${{ matrix.goos }}_${{ matrix.goarch }}*" --dir bin_upstream
+          echo "Fetching latest release archive from BeingNoAbility/WebRTC-Gateway matching ${{ matrix.goos }}_${GOARCH}..."
+          gh release download --repo BeingNoAbility/WebRTC-Gateway \
+            --pattern "*${{ matrix.goos }}_${GOARCH}*" \
+            --dir bin_upstream
 
-          ARCHIVE_FILE=$(find bin_upstream -type f -name "*${{ matrix.goos }}_${{ matrix.goarch }}*" | head -n 1)
+          ARCHIVE_FILE=$(find bin_upstream -type f -name "*${{ matrix.goos }}_${GOARCH}*" | head -n 1)
           if [ -z "$ARCHIVE_FILE" ]; then
-            echo "Error: Upstream release archive not found for ${{ matrix.goos }}_${{ matrix.goarch }}"
+            echo "Error: Upstream release archive not found for ${{ matrix.goos }}_${GOARCH}"
             exit 1
           fi
 
@@ -99,69 +119,96 @@ jobs:
             tar -xzf "$ARCHIVE_FILE" -C bin_extract/
           fi
 
-          cp "bin_extract/agent${{ matrix.bin_ext }}" "bin/"
-          cp "bin_extract/signal${{ matrix.bin_ext }}" "bin/"
+          AGENT_SRC=$(find bin_extract -type f -name "agent${{ matrix.bin_ext }}" | head -n 1)
+          SIGNAL_SRC=$(find bin_extract -type f -name "signal${{ matrix.bin_ext }}" | head -n 1)
+          if [ -z "$AGENT_SRC" ] || [ -z "$SIGNAL_SRC" ]; then
+            echo "Error: Failed to locate agent${{ matrix.bin_ext }} or signal${{ matrix.bin_ext }} in $ARCHIVE_FILE"
+            find bin_extract -maxdepth 3 -ls
+            exit 1
+          fi
+
+          cp "$AGENT_SRC" "bin/agent${{ matrix.bin_ext }}"
+          cp "$SIGNAL_SRC" "bin/signal${{ matrix.bin_ext }}"
+          LICENSE_SRC=$(find bin_extract -type f -name "LICENSE*" | head -n 1 || true)
+          if [ -n "$LICENSE_SRC" ]; then
+            cp "$LICENSE_SRC" "bin/"
+          fi
+
           if [ "${{ matrix.platform }}" != "windows" ]; then
             chmod +x "bin/agent${{ matrix.bin_ext }}" "bin/signal${{ matrix.bin_ext }}"
           fi
           ls -la bin/
 
       - name: Build Flutter Desktop Application
-        run: |
-          flutter build ${{ matrix.platform }} --release
+        run: flutter build ${{ matrix.platform }} --release
 
       - name: Package Distribution Bundle (Windows)
         if: matrix.platform == 'windows'
         shell: bash
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
+          GOARCH="${{ steps.vars.outputs.goarch }}"
           BUNDLE_DIR="build/windows/x64/runner/Release"
           mkdir -p "$BUNDLE_DIR/bin"
-          
-          # Copy bundled core binaries into Release package
-          if [ -f "bin/agent.exe" ]; then
-            cp bin/agent.exe "$BUNDLE_DIR/bin/"
+
+          cp bin/agent.exe "$BUNDLE_DIR/bin/"
+          cp bin/signal.exe "$BUNDLE_DIR/bin/"
+          if [ -f "bin/LICENSE" ]; then cp bin/LICENSE "$BUNDLE_DIR/bin/"; fi
+          if [ -f "LICENSE" ]; then cp LICENSE "$BUNDLE_DIR/"; fi
+          if [ -f "README.md" ]; then cp README.md "$BUNDLE_DIR/"; fi
+          if [ -f "windows/runner/resources/app_icon.ico" ]; then
+            cp windows/runner/resources/app_icon.ico "$BUNDLE_DIR/"
           fi
-          if [ -f "bin/signal.exe" ]; then
-            cp bin/signal.exe "$BUNDLE_DIR/bin/"
-          fi
-          
-          PKG_NAME="webrtc-gateway-gui_${TAG}_windows_amd64.zip"
-          cd "$BUNDLE_DIR"
-          7z a -tzip -mx=9 "../../../../$PKG_NAME" *
-          cd ../../../../
-          echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
+
+          PKG_NAME="webrtc-gateway-gui_${TAG}_windows_${GOARCH}.zip"
+          OUT_ZIP="$(pwd)/$PKG_NAME"
+          (cd "$BUNDLE_DIR" && 7z a -tzip -mx=9 "$OUT_ZIP" .)
+          echo "PKG_NAME=$PKG_NAME" >> "$GITHUB_ENV"
 
       - name: Package Distribution Bundle (Linux)
         if: matrix.platform == 'linux'
         shell: bash
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
+          GOARCH="${{ steps.vars.outputs.goarch }}"
           BUNDLE_DIR="build/linux/x64/release/bundle"
           mkdir -p "$BUNDLE_DIR/bin"
-          if [ -f "bin/agent" ]; then cp bin/agent "$BUNDLE_DIR/bin/"; chmod +x "$BUNDLE_DIR/bin/agent"; fi
-          if [ -f "bin/signal" ]; then cp bin/signal "$BUNDLE_DIR/bin/"; chmod +x "$BUNDLE_DIR/bin/signal"; fi
-          
-          PKG_NAME="webrtc-gateway-gui_${TAG}_linux_amd64.tar.gz"
-          tar -czvf "$PKG_NAME" -C "$BUNDLE_DIR" .
-          echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
+
+          cp bin/agent "$BUNDLE_DIR/bin/"
+          cp bin/signal "$BUNDLE_DIR/bin/"
+          chmod +x "$BUNDLE_DIR/bin/agent" "$BUNDLE_DIR/bin/signal"
+          if [ -f "bin/LICENSE" ]; then cp bin/LICENSE "$BUNDLE_DIR/bin/"; fi
+          if [ -f "LICENSE" ]; then cp LICENSE "$BUNDLE_DIR/"; fi
+          if [ -f "README.md" ]; then cp README.md "$BUNDLE_DIR/"; fi
+
+          PKG_NAME="webrtc-gateway-gui_${TAG}_linux_${GOARCH}.tar.gz"
+          tar -czvf "$(pwd)/$PKG_NAME" -C "$BUNDLE_DIR" .
+          echo "PKG_NAME=$PKG_NAME" >> "$GITHUB_ENV"
 
       - name: Package Distribution Bundle (macOS)
         if: matrix.platform == 'macos'
         shell: bash
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
+          GOARCH="${{ steps.vars.outputs.goarch }}"
           BUNDLE_DIR="build/macos/Build/Products/Release"
-          APP_BIN_DIR="$BUNDLE_DIR/webrtc_gateway_gui.app/Contents/MacOS/bin"
+          APP_DIR="$BUNDLE_DIR/webrtc_gateway_gui.app"
+          APP_BIN_DIR="$APP_DIR/Contents/MacOS/bin"
           mkdir -p "$APP_BIN_DIR"
-          if [ -f "bin/agent" ]; then cp bin/agent "$APP_BIN_DIR/"; chmod +x "$APP_BIN_DIR/agent"; fi
-          if [ -f "bin/signal" ]; then cp bin/signal "$APP_BIN_DIR/"; chmod +x "$APP_BIN_DIR/signal"; fi
 
-          PKG_NAME="webrtc-gateway-gui_${TAG}_macos_arm64.zip"
-          cd "$BUNDLE_DIR"
-          zip -9 -r "../../../../../$PKG_NAME" .
-          cd ../../../../../
-          echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
+          cp bin/agent "$APP_BIN_DIR/"
+          cp bin/signal "$APP_BIN_DIR/"
+          chmod +x "$APP_BIN_DIR/agent" "$APP_BIN_DIR/signal"
+          if [ -f "bin/LICENSE" ]; then cp bin/LICENSE "$APP_BIN_DIR/"; fi
+
+          codesign --force --sign - "$APP_BIN_DIR/agent"
+          codesign --force --sign - "$APP_BIN_DIR/signal"
+          codesign --force --sign - "$APP_DIR"
+
+          PKG_NAME="webrtc-gateway-gui_${TAG}_macos_${GOARCH}.zip"
+          OUT_ZIP="$(pwd)/$PKG_NAME"
+          (cd "$BUNDLE_DIR" && ditto -c -k --sequesterRsrc --keepParent "webrtc_gateway_gui.app" "$OUT_ZIP")
+          echo "PKG_NAME=$PKG_NAME" >> "$GITHUB_ENV"
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
@@ -189,9 +236,9 @@ jobs:
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Generate Checksums
@@ -203,25 +250,32 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: ${{ steps.vars.outputs.tag }} - WebRTC Gateway Desktop GUI
           body: |
             ### WebRTC Gateway Desktop GUI (${{ steps.vars.outputs.tag }})
 
-            现代化跨平台 WebRTC 零客户端 P2P 内网穿透桌面客户端（Windows 优先）。
+            现代化跨平台 WebRTC 零客户端 P2P 内网穿透桌面客户端（Windows 优先体验，兼顾 Linux 与 macOS）。
+            本发布已自动嵌入上游 [BeingNoAbility/WebRTC-Gateway](https://github.com/BeingNoAbility/WebRTC-Gateway/releases/latest) 最新构建的 `agent` / `signal` 核心二进制文件，解压即用。
+
+            #### 分发资产 (Downloads)
+            - **Windows (`x64`)**：`webrtc-gateway-gui_${{ steps.vars.outputs.tag }}_windows_amd64.zip` — 绿色免安装便携包，内置 `agent.exe` 与 `signal.exe`。
+            - **Linux (`x64`)**：`webrtc-gateway-gui_${{ steps.vars.outputs.tag }}_linux_amd64.tar.gz` — 需要系统安装 GTK3 与 `libayatana-appindicator3-1`。
+            - **macOS (`Apple Silicon arm64`)**：`webrtc-gateway-gui_${{ steps.vars.outputs.tag }}_macos_arm64.zip` — 未公证测试版如提示无法验证开发者，可运行 `xattr -dr com.apple.quarantine webrtc_gateway_gui.app` 后打开。
+            - **校验文件**：`SHA256SUMS.txt`
 
             #### 核心特性
-            - **多 Agent 并发管理**：支持同时运行多个独立穿透节点，自动分配内部端口防冲突。
-            - **开箱即用内置核心**：CI 自动打包嵌入上游 `WebRTC-Gateway` 最新发布二进制，解压即用无需配置。
-            - **灵活二进制点选**：支持全局或单个 Agent 自定义指定本地 `agent.exe` 路径，实时识别并回显版本。
-            - **全场景三模支持**：本地服务反代（带常用端口预设）、静态目录托管、单文件高速直传。
-            - **快速免密分享**：一键生成 Web 访问链接、动态二维码扫码直连、时效签名安全链接、格式化分享卡片。
-            - **极客监控看板 (HUD 2.0)**：实时吞吐量与活跃流图表、活跃连接监控与 `RST_STREAM` 强杀控制。
-            - **网络诊断与优化**：RFC 3489 NAT 类型探测、公共 STUN 服务器低延迟测速与自动优选。
-            - **Windows 桌面深度融合**：系统托盘常驻与快捷启停、断网与休眠唤醒原地自愈重连。
-            - **国际化与更新**：中英文双语一键无感热切换、GitHub Releases 自动检查更新。
+            - **多 Agent 并发管理**：支持同时运行多个独立穿透节点，自动动态分配 Prometheus 内部端口防冲突。
+            - **全场景三模支持**：本地服务反代（内置常用端口预设）、静态目录托管、单文件直传。
+            - **安全与分享**：内置公开免密启动拦截提醒，支持一键生成上游兼容的 **HMAC-SHA256 时效签名链接**、CLI 临时签名锁 (`-sign-link`)、二维码与隐藏密码分享卡片。
+            - **监控看板**：1Hz 时间轴对齐聚合吞吐率与活跃流图表、节点会话监控与平滑重启通道（单流级 `RST_STREAM` 强杀在访客 Web Portal HUD 悬浮球内提供）。
+            - **网络诊断与本地信令**：RFC 3489 / 5780 NAT 类型诊断、STUN 延迟测速优选；GUI 一键启停内置 `signal`（默认 `-tls-auto` 与严格同源策略）。
+            - **桌面融合与稳定性**：Windows 单实例互斥、系统托盘、开机自启、`WM_GETOBJECT` 引擎防护与断网恢复自愈，支持 MiSans 字体排版及中英文热切换。
           files: release_assets/*
+          overwrite_files: true
           generate_release_notes: true
           draft: false
           prerelease: false

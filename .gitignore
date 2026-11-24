@@ -47,9 +47,18 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Local binaries & configs
+# Local binaries, configs & build outputs
 /bin/*
 !/bin/.gitkeep
+/bin_upstream/
+/bin_extract/
+/data/
+/portable_config/
 *.local.yaml
 *.local.json
+*.tmp
+*.new
+*.bak
 release_packages/
+e2e_shots/
+.vscode/
