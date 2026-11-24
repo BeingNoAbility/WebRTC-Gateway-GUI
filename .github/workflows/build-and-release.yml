@@ -1,0 +1,218 @@
+name: Build and Release GUI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag Name (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-matrix:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            goos: windows
+            goarch: amd64
+            bin_ext: .exe
+            archive_ext: zip
+          - os: ubuntu-latest
+            platform: linux
+            goos: linux
+            goarch: amd64
+            bin_ext: ''
+            archive_ext: tar.gz
+          - os: macos-latest
+            platform: macos
+            goos: darwin
+            goarch: arm64
+            bin_ext: ''
+            archive_ext: zip
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Linux Build Dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: Run Static Analysis & Tests
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Determine Version Tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch and Bundle Latest Upstream WebRTC-Gateway Binaries
+        id: fetch-binaries
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p bin_upstream
+          mkdir -p bin
+
+          echo "Fetching latest release archive from BeingNoAbility/WebRTC-Gateway matching ${{ matrix.goos }}_${{ matrix.goarch }}..."
+          gh release download --repo BeingNoAbility/WebRTC-Gateway --pattern "*${{ matrix.goos }}_${{ matrix.goarch }}*" --dir bin_upstream || true
+
+          # Extract binaries if downloaded
+          ARCHIVE_FILE=$(find bin_upstream -type f -name "*${{ matrix.goos }}_${{ matrix.goarch }}*" | head -n 1)
+          if [ -n "$ARCHIVE_FILE" ]; then
+            echo "Found archive: $ARCHIVE_FILE. Extracting..."
+            if [[ "$ARCHIVE_FILE" == *.zip ]]; then
+              unzip -o "$ARCHIVE_FILE" -d bin/
+            else
+              tar -xzf "$ARCHIVE_FILE" -C bin/
+            fi
+            echo "Bundled binaries into bin/:"
+            ls -la bin/
+          else
+            echo "Warning: Upstream release archive not found via pattern, creating placeholder directory"
+          fi
+
+      - name: Build Flutter Desktop Application
+        run: |
+          flutter build ${{ matrix.platform }} --release
+
+      - name: Package Distribution Bundle (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          BUNDLE_DIR="build/windows/x64/runner/Release"
+          mkdir -p "$BUNDLE_DIR/bin"
+          
+          # Copy bundled core binaries into Release package
+          if [ -f "bin/agent.exe" ]; then
+            cp bin/agent.exe "$BUNDLE_DIR/bin/"
+          fi
+          if [ -f "bin/signal.exe" ]; then
+            cp bin/signal.exe "$BUNDLE_DIR/bin/"
+          fi
+          
+          PKG_NAME="webrtc-gateway-gui_${TAG}_windows_amd64.zip"
+          cd "$BUNDLE_DIR"
+          7z a -tzip -mx=9 "../../../../$PKG_NAME" *
+          cd ../../../../
+          echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
+
+      - name: Package Distribution Bundle (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          BUNDLE_DIR="build/linux/x64/release/bundle"
+          mkdir -p "$BUNDLE_DIR/bin"
+          if [ -f "bin/agent" ]; then cp bin/agent "$BUNDLE_DIR/bin/"; chmod +x "$BUNDLE_DIR/bin/agent"; fi
+          if [ -f "bin/signal" ]; then cp bin/signal "$BUNDLE_DIR/bin/"; chmod +x "$BUNDLE_DIR/bin/signal"; fi
+          
+          PKG_NAME="webrtc-gateway-gui_${TAG}_linux_amd64.tar.gz"
+          tar -czvf "$PKG_NAME" -C "$BUNDLE_DIR" .
+          echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
+
+      - name: Package Distribution Bundle (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          BUNDLE_DIR="build/macos/Build/Products/Release"
+          PKG_NAME="webrtc-gateway-gui_${TAG}_macos_arm64.zip"
+          cd "$BUNDLE_DIR"
+          zip -9 -r "../../../../../$PKG_NAME" .
+          cd ../../../../../
+          echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PKG_NAME }}
+          path: ${{ env.PKG_NAME }}
+          retention-days: 1
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          merge-multiple: true
+
+      - name: Determine Version Tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Checksums
+        shell: bash
+        run: |
+          cd release_assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: ${{ steps.vars.outputs.tag }} - WebRTC Gateway Desktop GUI
+          body: |
+            ### WebRTC Gateway Desktop GUI (${{ steps.vars.outputs.tag }})
+
+            现代化跨平台 WebRTC 零客户端 P2P 内网穿透桌面客户端（Windows 优先）。
+
+            #### 核心特性
+            - **多 Agent 并发管理**：支持同时运行多个独立穿透节点，自动分配内部端口防冲突。
+            - **开箱即用内置核心**：CI 自动打包嵌入上游 `WebRTC-Gateway` 最新发布二进制，解压即用无需配置。
+            - **灵活二进制点选**：支持全局或单个 Agent 自定义指定本地 `agent.exe` 路径，实时识别并回显版本。
+            - **全场景三模支持**：本地服务反代（带常用端口预设）、静态目录托管、单文件高速直传。
+            - **快速免密分享**：一键生成 Web 访问链接、动态二维码扫码直连、时效签名安全链接、格式化分享卡片。
+            - **极客监控看板 (HUD 2.0)**：实时吞吐量与活跃流图表、活跃连接监控与 `RST_STREAM` 强杀控制。
+            - **网络诊断与优化**：RFC 3489 NAT 类型探测、公共 STUN 服务器低延迟测速与自动优选。
+            - **Windows 桌面深度融合**：系统托盘常驻与快捷启停、断网与休眠唤醒原地自愈重连。
+            - **国际化与更新**：中英文双语一键无感热切换、GitHub Releases 自动检查更新。
+          files: release_assets/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
