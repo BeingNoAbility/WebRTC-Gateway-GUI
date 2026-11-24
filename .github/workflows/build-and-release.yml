@@ -199,11 +199,15 @@ jobs:
           cp bin/agent "$APP_BIN_DIR/"
           cp bin/signal "$APP_BIN_DIR/"
           chmod +x "$APP_BIN_DIR/agent" "$APP_BIN_DIR/signal"
-          if [ -f "bin/LICENSE" ]; then cp bin/LICENSE "$APP_BIN_DIR/"; fi
+          if [ -f "bin/LICENSE" ]; then
+            mkdir -p "$APP_DIR/Contents/Resources"
+            cp bin/LICENSE "$APP_DIR/Contents/Resources/CORE_LICENSE"
+          fi
 
           codesign --force --sign - "$APP_BIN_DIR/agent"
           codesign --force --sign - "$APP_BIN_DIR/signal"
           codesign --force --sign - "$APP_DIR"
+          codesign --verify --deep --strict "$APP_DIR"
 
           PKG_NAME="webrtc-gateway-gui_${TAG}_macos_${GOARCH}.zip"
           OUT_ZIP="$(pwd)/$PKG_NAME"
