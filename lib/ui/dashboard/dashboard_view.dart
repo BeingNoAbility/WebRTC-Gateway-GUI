@@ -26,7 +26,12 @@ class DashboardView extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     final runningPublicNodes = state.profiles
-        .where((p) => state.isRunning(p.id) && p.accessSecret.isEmpty)
+        .where(
+          (p) =>
+              state.isRunning(p.id) &&
+              p.accessSecret.isEmpty &&
+              p.signLink.trim().isEmpty,
+        )
         .toList();
 
     final isSignalRunning = state.isSignalRunning();

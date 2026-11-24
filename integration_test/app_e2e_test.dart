@@ -471,6 +471,7 @@ void main() {
     );
     expect(polledMetrics, isTrue);
     await tester.pumpAndSettle();
+    expect(find.textContaining('公开免密'), findsNothing);
     await _saveScreenshot(env.boundaryKey, 'e2e_10_dashboard_live_metrics.png');
 
     final oldPid = env.appState.getRuntimeState(uiProxyProfile.id).pid;
