@@ -101,34 +101,43 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 
-  void _exportAgentsOnly() async {
+
+
+  void _exportUpstreamAgentYaml() async {
     final state = context.read<AppState>();
-    final jsonList = state.profiles.map((p) => p.toJson()).toList();
-    final bytes = Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent('  ').convert(jsonList)));
+    if (state.profiles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('当前暂无穿透节点，请先添加节点')),
+      );
+      return;
+    }
+    final firstProfile = state.profiles.first;
+    final yamlStr = firstProfile.toYamlString();
+    final bytes = Uint8List.fromList(utf8.encode(yamlStr));
     final uri = await FilePicker.saveFile(
-      dialogTitle: '导出穿透节点配置 (Agents Config)',
-      fileName: 'webrtc_gateway_agents.json',
+      dialogTitle: '导出源项目标准 agent.yaml 配置文件',
+      fileName: 'agent.yaml',
       bytes: bytes,
     );
     if (uri != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已成功导出节点配置到: ${uri.path}')),
+        SnackBar(content: Text('已成功导出源项目 agent.yaml 到: ${uri.path}')),
       );
     }
   }
 
-  void _exportSignalOnly() async {
+  void _exportUpstreamSignalYaml() async {
     final state = context.read<AppState>();
-    final jsonMap = state.signalConfig.toJson();
-    final bytes = Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent('  ').convert(jsonMap)));
+    final yamlStr = state.signalConfig.toYamlString();
+    final bytes = Uint8List.fromList(utf8.encode(yamlStr));
     final uri = await FilePicker.saveFile(
-      dialogTitle: '导出信令服务配置 (Signal Config)',
-      fileName: 'webrtc_gateway_signal.json',
+      dialogTitle: '导出源项目标准 server.yaml 配置文件',
+      fileName: 'server.yaml',
       bytes: bytes,
     );
     if (uri != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已成功导出信令配置到: ${uri.path}')),
+        SnackBar(content: Text('已成功导出源项目 server.yaml 到: ${uri.path}')),
       );
     }
   }
@@ -137,7 +146,7 @@ class _SettingsViewState extends State<SettingsView> {
     final state = context.read<AppState>();
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['yaml', 'yml', 'json'],
     );
     if (result.isNotEmpty && result.first.path != null) {
       final summary = await state.importConfigFile(result.first.path!);
@@ -145,13 +154,21 @@ class _SettingsViewState extends State<SettingsView> {
         final agentsCount = summary['agents'] as int? ?? 0;
         final signalUpdated = summary['signal'] as bool? ?? false;
         final settingsUpdated = summary['settings'] as bool? ?? false;
+        final type = summary['type'] as String? ?? '';
 
         final parts = <String>[];
         if (agentsCount > 0) parts.add('$agentsCount 个节点');
         if (signalUpdated) parts.add('信令服务配置');
         if (settingsUpdated) parts.add('全局偏好设置');
 
-        final msg = parts.isNotEmpty ? '已成功导入: ${parts.join('、')}' : '未在配置文件中识别到可导入项';
+        String prefix = '已成功导入: ';
+        if (type == 'upstream_agent') {
+          prefix = '已成功解析源项目 Agent 配置并载入: ';
+        } else if (type == 'upstream_signal') {
+          prefix = '已成功解析源项目 Signal 配置并载入: ';
+        }
+
+        final msg = parts.isNotEmpty ? '$prefix${parts.join('、')}' : '未在配置文件中识别到可导入项';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg)),
         );
@@ -380,22 +397,22 @@ class _SettingsViewState extends State<SettingsView> {
                       FilledButton.icon(
                         onPressed: _exportAllConfig,
                         icon: const Icon(Icons.download_rounded, size: 16),
-                        label: const Text('全量打包导出 (Full Backup)'),
+                        label: const Text('全量打包导出 (.json)'),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: _exportAgentsOnly,
+                        onPressed: _exportUpstreamAgentYaml,
                         icon: const Icon(Icons.hub_outlined, size: 16),
-                        label: const Text('单独导出穿透节点 (Agents)'),
+                        label: const Text('导出源项目 agent.yaml'),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: _exportSignalOnly,
+                        onPressed: _exportUpstreamSignalYaml,
                         icon: const Icon(Icons.dns_outlined, size: 16),
-                        label: const Text('单独导出信令配置 (Signal)'),
+                        label: const Text('导出源项目 server.yaml'),
                       ),
                       OutlinedButton.icon(
                         onPressed: _importAnyConfig,
                         icon: const Icon(Icons.upload_file_rounded, size: 16),
-                        label: const Text('导入配置文件 (Smart Import)'),
+                        label: const Text('导入配置 (支持 .yaml / .yml / .json)'),
                       ),
                     ],
                   ),

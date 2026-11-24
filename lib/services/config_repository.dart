@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:yaml/yaml.dart';
 import '../models/agent_profile.dart';
 import '../models/app_settings.dart';
 import '../models/signal_profile.dart';
@@ -177,21 +178,93 @@ class ConfigRepository {
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(jsonMap));
   }
 
-  /// Imports from file and returns summary: {'agents': count, 'signal': bool, 'settings': bool}
+  /// Exports profile in standard upstream agent.yaml format
+  Future<void> exportUpstreamAgentYaml(String profileId, String targetPath) async {
+    final profile = getById(profileId);
+    if (profile == null) return;
+    final file = File(targetPath);
+    await file.writeAsString(profile.toYamlString());
+  }
+
+  /// Exports signal config in standard upstream server.yaml format
+  Future<void> exportUpstreamSignalYaml(String targetPath) async {
+    final file = File(targetPath);
+    await file.writeAsString(_signalConfig.toYamlString());
+  }
+
+  /// Imports from file and returns summary (supports upstream agent.yaml / server.yaml and JSON)
   Future<Map<String, dynamic>> importFromFile(String filePath) async {
     final file = File(filePath);
     final content = await file.readAsString();
-    final dynamic decoded = jsonDecode(content);
+    final dynamic decoded = loadYaml(content);
 
     int agentCount = 0;
     bool signalImported = false;
     bool settingsImported = false;
+    String detectedType = 'unknown';
 
-    if (decoded is Map<String, dynamic>) {
-      if (decoded.containsKey('agents') && decoded['agents'] is List) {
-        final List<dynamic> list = decoded['agents'] as List<dynamic>;
-        for (final item in list) {
-          final profile = AgentProfile.fromJson(item as Map<String, dynamic>);
+    if (decoded is Map) {
+      // 1. Upstream Agent config (e.g. agent.example.yaml or agent.yaml)
+      if (decoded.containsKey('signal') &&
+          (decoded.containsKey('target') ||
+              decoded.containsKey('dir') ||
+              decoded.containsKey('file') ||
+              decoded.containsKey('node_id'))) {
+        final profile = AgentProfile.fromUpstreamMap(decoded);
+        final idx = _profiles.indexWhere((p) => p.nodeId == profile.nodeId);
+        if (idx != -1) {
+          _profiles[idx] = profile;
+        } else {
+          _profiles.add(profile);
+        }
+        agentCount++;
+        detectedType = 'upstream_agent';
+      }
+      // 2. Upstream Signal Server config (e.g. server.example.yaml or server.yaml)
+      else if (decoded.containsKey('addr') &&
+          (decoded.containsKey('static') ||
+              decoded.containsKey('portal_domain') ||
+              decoded.containsKey('signal_secret') ||
+              decoded.containsKey('tls_auto') ||
+              decoded.containsKey('max_ip_conns'))) {
+        _signalConfig = SignalServerConfig.fromUpstreamMap(decoded);
+        signalImported = true;
+        detectedType = 'upstream_signal';
+      }
+      // 3. Modern GUI configuration bundle
+      else {
+        if (decoded.containsKey('agents') && decoded['agents'] is List) {
+          final List<dynamic> list = decoded['agents'] as List<dynamic>;
+          for (final item in list) {
+            if (item is Map) {
+              final profile = AgentProfile.fromJson(Map<String, dynamic>.from(item));
+              final idx = _profiles.indexWhere((p) => p.id == profile.id || p.nodeId == profile.nodeId);
+              if (idx != -1) {
+                _profiles[idx] = profile;
+              } else {
+                _profiles.add(profile);
+              }
+              agentCount++;
+            }
+          }
+          detectedType = 'bundle';
+        }
+
+        if (decoded.containsKey('signal') && decoded['signal'] is Map) {
+          _signalConfig = SignalServerConfig.fromJson(Map<String, dynamic>.from(decoded['signal'] as Map));
+          signalImported = true;
+        }
+
+        if (decoded.containsKey('settings') && decoded['settings'] is Map) {
+          _settings = AppSettings.fromJson(Map<String, dynamic>.from(decoded['settings'] as Map));
+          settingsImported = true;
+        }
+      }
+    } else if (decoded is List) {
+      // Agent profiles list
+      for (final item in decoded) {
+        if (item is Map) {
+          final profile = AgentProfile.fromJson(Map<String, dynamic>.from(item));
           final idx = _profiles.indexWhere((p) => p.id == profile.id || p.nodeId == profile.nodeId);
           if (idx != -1) {
             _profiles[idx] = profile;
@@ -201,32 +274,7 @@ class ConfigRepository {
           agentCount++;
         }
       }
-
-      if (decoded.containsKey('signal') && decoded['signal'] is Map) {
-        _signalConfig = SignalServerConfig.fromJson(decoded['signal'] as Map<String, dynamic>);
-        signalImported = true;
-      } else if (decoded.containsKey('addr') && (decoded.containsKey('tls_auto') || decoded.containsKey('portal_domain'))) {
-        // Individual signal config file
-        _signalConfig = SignalServerConfig.fromJson(decoded);
-        signalImported = true;
-      }
-
-      if (decoded.containsKey('settings') && decoded['settings'] is Map) {
-        _settings = AppSettings.fromJson(decoded['settings'] as Map<String, dynamic>);
-        settingsImported = true;
-      }
-    } else if (decoded is List<dynamic>) {
-      // Legacy agent profiles list
-      for (final item in decoded) {
-        final profile = AgentProfile.fromJson(item as Map<String, dynamic>);
-        final idx = _profiles.indexWhere((p) => p.id == profile.id || p.nodeId == profile.nodeId);
-        if (idx != -1) {
-          _profiles[idx] = profile;
-        } else {
-          _profiles.add(profile);
-        }
-        agentCount++;
-      }
+      detectedType = 'agent_list';
     }
 
     await save();
@@ -234,6 +282,7 @@ class ConfigRepository {
       'agents': agentCount,
       'signal': signalImported,
       'settings': settingsImported,
+      'type': detectedType,
     };
   }
 }

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../core/i18n.dart';
@@ -38,6 +41,26 @@ class AgentListView extends StatelessWidget {
                 ],
               ),
               const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final result = await FilePicker.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['yaml', 'yml', 'json'],
+                  );
+                  if (result.isNotEmpty && result.first.path != null) {
+                    final summary = await state.importConfigFile(result.first.path!);
+                    if (context.mounted) {
+                      final count = summary['agents'] as int? ?? 0;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('已成功导入 $count 个源项目 Agent 穿透节点配置')),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.file_upload_outlined, size: 16),
+                label: const Text('导入 agent.yaml'),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: state.runningCount < state.profiles.length ? () => state.startAllAgents() : null,
                 icon: const Icon(Icons.play_arrow_rounded, color: Colors.green),
@@ -249,6 +272,24 @@ class _AgentCard extends StatelessWidget {
               tooltip: '快速分享',
               icon: const Icon(Icons.qr_code_2_rounded, color: Colors.blueAccent),
               onPressed: () => ShareDialog.show(context, profile),
+            ),
+            IconButton(
+              tooltip: '导出源项目 agent.yaml',
+              icon: const Icon(Icons.file_download_outlined, color: Colors.teal),
+              onPressed: () async {
+                final yamlStr = profile.toYamlString();
+                final bytes = Uint8List.fromList(utf8.encode(yamlStr));
+                final uri = await FilePicker.saveFile(
+                  dialogTitle: '导出标准 agent.yaml 配置文件',
+                  fileName: 'agent.${profile.nodeId}.yaml',
+                  bytes: bytes,
+                );
+                if (uri != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('已导出源项目 agent.yaml 到: ${uri.path}')),
+                  );
+                }
+              },
             ),
             IconButton(
               tooltip: '查看日志',

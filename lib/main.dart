@@ -51,6 +51,16 @@ class WebRTCGatewayApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
+        fontFamily: 'MiSans',
+        fontFamilyFallback: const [
+          'MiSans',
+          'Microsoft YaHei UI',
+          'Microsoft YaHei',
+          'PingFang SC',
+          'HarmonyOS Sans SC',
+          'Segoe UI',
+          'sans-serif',
+        ],
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF0284C7), // Cyber Cyan Blue from source logo
           brightness: Brightness.light,
@@ -62,6 +72,16 @@ class WebRTCGatewayApp extends StatelessWidget {
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
+        fontFamily: 'MiSans',
+        fontFamilyFallback: const [
+          'MiSans',
+          'Microsoft YaHei UI',
+          'Microsoft YaHei',
+          'PingFang SC',
+          'HarmonyOS Sans SC',
+          'Segoe UI',
+          'sans-serif',
+        ],
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF38BDF8),
           brightness: Brightness.dark,

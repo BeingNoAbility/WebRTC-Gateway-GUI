@@ -39,6 +39,22 @@ class SignalServerConfig {
         'metrics_addr': metricsAddr,
       };
 
+  factory SignalServerConfig.fromUpstreamMap(Map<dynamic, dynamic> map) => SignalServerConfig(
+        addr: (map['addr'] ?? ':8888').toString(),
+        staticDir: (map['static'] ?? map['static_dir'] ?? '').toString(),
+        tlsAuto: map['tls_auto'] == true,
+        tlsCert: (map['tls_cert'] ?? '').toString(),
+        tlsKey: (map['tls_key'] ?? '').toString(),
+        allowedOrigins: (map['allowed_origins'] ?? (map['allow_all_origins'] == true ? '*' : '')).toString(),
+        portalDomain: (map['portal_domain'] ?? '').toString(),
+        signalSecret: (map['signal_secret'] ?? '').toString(),
+        trustedProxies: (map['trusted_proxies'] ??
+                '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128')
+            .toString(),
+        maxIpConns: (map['max_ip_conns'] as num?)?.toInt() ?? 64,
+        metricsAddr: (map['metrics_addr'] ?? ':9090').toString(),
+      );
+
   factory SignalServerConfig.fromJson(Map<String, dynamic> json) => SignalServerConfig(
         addr: json['addr'] as String? ?? ':8888',
         staticDir: json['static_dir'] as String? ?? '',

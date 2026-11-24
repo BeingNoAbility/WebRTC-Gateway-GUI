@@ -187,6 +187,14 @@ class AppState extends ChangeNotifier {
     await configRepo.exportSignalToFile(targetPath);
   }
 
+  Future<void> exportUpstreamAgentYaml(String profileId, String targetPath) async {
+    await configRepo.exportUpstreamAgentYaml(profileId, targetPath);
+  }
+
+  Future<void> exportUpstreamSignalYaml(String targetPath) async {
+    await configRepo.exportUpstreamSignalYaml(targetPath);
+  }
+
   Future<Map<String, dynamic>> importConfigFile(String filePath) async {
     final res = await configRepo.importFromFile(filePath);
     signalConfig = configRepo.signalConfig;

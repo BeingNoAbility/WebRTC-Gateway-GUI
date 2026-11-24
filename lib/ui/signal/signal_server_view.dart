@@ -122,16 +122,16 @@ class _SignalServerViewState extends State<SignalServerView> {
 
   void _exportConfig(AppState state) async {
     _syncConfig(state);
-    final jsonMap = state.signalConfig.toJson();
-    final bytes = Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent('  ').convert(jsonMap)));
+    final yamlStr = state.signalConfig.toYamlString();
+    final bytes = Uint8List.fromList(utf8.encode(yamlStr));
     final uri = await FilePicker.saveFile(
-      dialogTitle: '导出信令服务配置',
-      fileName: 'webrtc_gateway_signal.json',
+      dialogTitle: '导出源项目标准 server.yaml 配置文件',
+      fileName: 'server.yaml',
       bytes: bytes,
     );
     if (uri != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已成功导出信令配置到: ${uri.path}')),
+        SnackBar(content: Text('已成功导出 server.yaml 到: ${uri.path}')),
       );
     }
   }
@@ -139,10 +139,10 @@ class _SignalServerViewState extends State<SignalServerView> {
   void _importConfig(AppState state) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['yaml', 'yml', 'json'],
     );
     if (result.isNotEmpty && result.first.path != null) {
-      await state.importConfigFile(result.first.path!);
+      final summary = await state.importConfigFile(result.first.path!);
       final cfg = state.signalConfig;
       setState(() {
         _addrCtrl.text = cfg.addr;
@@ -158,8 +158,9 @@ class _SignalServerViewState extends State<SignalServerView> {
         _maxIpConns = cfg.maxIpConns;
       });
       if (mounted) {
+        final signalUpdated = summary['signal'] as bool? ?? false;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已成功导入信令服务配置并更新表单')),
+          SnackBar(content: Text(signalUpdated ? '已成功导入并加载源项目 server.yaml 信令配置' : '未在文件中检测到信令配置')),
         );
       }
     }

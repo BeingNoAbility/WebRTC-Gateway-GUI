@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:webrtc_gateway_gui/models/agent_profile.dart';
+import 'package:webrtc_gateway_gui/models/signal_profile.dart';
 import 'package:webrtc_gateway_gui/services/diagnostic_service.dart';
 
 void main() {
@@ -69,6 +70,58 @@ void main() {
       expect(card, contains('mypassword'));
       expect(card, contains('24 小时内有效'));
       expect(card, contains('无需安装任何客户端'));
+    });
+
+    test('Upstream agent.example.yaml map parses correctly', () {
+      final upstreamMap = {
+        'node_id': 'nas-web',
+        'signal': 'wss://signal.example.com/ws',
+        'signal_secret': 'cluster-secret-key-123',
+        'access_secret': 'visitor-secret',
+        'target': 'http://127.0.0.1:8080',
+        'stun_servers': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+        'max_trunks': 4,
+        'max_streams': 512,
+      };
+
+      final profile = AgentProfile.fromUpstreamMap(upstreamMap);
+      expect(profile.nodeId, 'nas-web');
+      expect(profile.signalUrl, 'wss://signal.example.com/ws');
+      expect(profile.signalSecret, 'cluster-secret-key-123');
+      expect(profile.accessSecret, 'visitor-secret');
+      expect(profile.target, 'http://127.0.0.1:8080');
+      expect(profile.maxTrunks, 4);
+      expect(profile.maxStreams, 512);
+      expect(profile.stunServers.length, 2);
+    });
+  });
+
+  group('SignalServerConfig Unit Tests', () {
+    test('Upstream server.example.yaml map parses and exports correctly', () {
+      final upstreamMap = {
+        'addr': ':8888',
+        'allowed_origins': '*',
+        'portal_domain': 'portal.example.com',
+        'signal_secret': 'cluster-secret-key-123',
+        'static': '/var/www/html',
+        'tls_auto': true,
+        'max_ip_conns': 128,
+        'metrics_addr': ':9090',
+      };
+
+      final config = SignalServerConfig.fromUpstreamMap(upstreamMap);
+      expect(config.addr, ':8888');
+      expect(config.allowedOrigins, '*');
+      expect(config.portalDomain, 'portal.example.com');
+      expect(config.signalSecret, 'cluster-secret-key-123');
+      expect(config.staticDir, '/var/www/html');
+      expect(config.tlsAuto, isTrue);
+      expect(config.maxIpConns, 128);
+
+      final yaml = config.toYamlString();
+      expect(yaml, contains('addr: ":8888"'));
+      expect(yaml, contains('tls_auto: true'));
+      expect(yaml, contains('portal_domain: "portal.example.com"'));
     });
   });
 

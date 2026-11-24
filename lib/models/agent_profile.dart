@@ -151,6 +151,85 @@ class AgentProfile {
         'auto_start': autoStart,
       };
 
+  factory AgentProfile.fromUpstreamMap(Map<dynamic, dynamic> map, {String? defaultName}) {
+    final nodeId = (map['node_id'] ?? 'homeserver').toString();
+    final signal = (map['signal'] ?? 'ws://127.0.0.1:8888/ws').toString();
+    final signalSecret = (map['signal_secret'] ?? '').toString();
+    final accessSecret = (map['access_secret'] ?? '').toString();
+
+    TunnelMode mode = TunnelMode.target;
+    String target = 'http://127.0.0.1:8080';
+    String dirPath = '';
+    String filePath = '';
+
+    if (map.containsKey('dir') && map['dir'] != null && map['dir'].toString().isNotEmpty) {
+      mode = TunnelMode.dir;
+      dirPath = map['dir'].toString();
+    } else if (map.containsKey('file') && map['file'] != null && map['file'].toString().isNotEmpty) {
+      mode = TunnelMode.file;
+      filePath = map['file'].toString();
+    } else if (map.containsKey('target') && map['target'] != null) {
+      mode = TunnelMode.target;
+      target = map['target'].toString();
+    }
+
+    final proxy = (map['proxy'] ?? '').toString();
+    final sni = (map['sni'] ?? '').toString();
+    final insecure = map['insecure'] == true;
+    final insecureTarget = map['insecure_target'] == true;
+
+    List<String> stunList = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'];
+    if (map['stun_servers'] != null) {
+      if (map['stun_servers'] is List) {
+        stunList = (map['stun_servers'] as List).map((e) => e.toString()).toList();
+      } else if (map['stun_servers'] is String) {
+        stunList = map['stun_servers'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      }
+    }
+
+    final turnUrl = (map['turn_url'] ?? '').toString();
+    final turnUser = (map['turn_user'] ?? '').toString();
+    final turnPass = (map['turn_pass'] ?? '').toString();
+    final maxStreams = (map['max_streams'] as num?)?.toInt() ?? 512;
+    final maxTrunks = (map['max_trunks'] as num?)?.toInt() ?? 4;
+    final portalUrl = (map['portal_url'] ?? '').toString();
+
+    String allowedProxyDomains = '';
+    if (map['allowed_proxy_domains'] != null) {
+      if (map['allowed_proxy_domains'] is List) {
+        allowedProxyDomains = (map['allowed_proxy_domains'] as List).map((e) => e.toString()).join(',');
+      } else {
+        allowedProxyDomains = map['allowed_proxy_domains'].toString();
+      }
+    }
+
+    return AgentProfile(
+      id: 'agent_${DateTime.now().millisecondsSinceEpoch}_${nodeId.replaceAll(RegExp(r'\W'), '_')}',
+      name: defaultName ?? '节点 ($nodeId)',
+      nodeId: nodeId,
+      mode: mode,
+      target: target,
+      dirPath: dirPath,
+      filePath: filePath,
+      signalUrl: signal,
+      signalSecret: signalSecret,
+      accessSecret: accessSecret,
+      allowPublic: accessSecret.isEmpty,
+      allowedProxyDomains: allowedProxyDomains,
+      portalUrl: portalUrl,
+      maxTrunks: maxTrunks,
+      maxStreams: maxStreams,
+      stunServers: stunList,
+      turnUrl: turnUrl,
+      turnUser: turnUser,
+      turnPass: turnPass,
+      insecure: insecure,
+      insecureTarget: insecureTarget,
+      proxy: proxy,
+      sni: sni,
+    );
+  }
+
   factory AgentProfile.fromJson(Map<String, dynamic> json) {
     return AgentProfile(
       id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
