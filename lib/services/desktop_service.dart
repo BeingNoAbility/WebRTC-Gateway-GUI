@@ -15,6 +15,11 @@ class DesktopService with TrayListener, WindowListener {
 
   static VoidCallback? onRequestClosePrompt;
 
+  int _lastRunningCount = -1;
+  bool _lastSignalRunning = false;
+  int _lastProfilesCount = -1;
+  bool _isUpdatingTray = false;
+
   DesktopService(this.appState);
 
   Future<void> init() async {
@@ -53,6 +58,21 @@ class DesktopService with TrayListener, WindowListener {
   }
 
   void _onAppStateChanged() {
+    final isSignalRunning = appState.isSignalRunning();
+    final runningNodes = appState.runningCount;
+    final profilesCount = appState.profiles.length;
+
+    // Only update native Win32 tray when running status actually changes
+    if (isSignalRunning == _lastSignalRunning &&
+        runningNodes == _lastRunningCount &&
+        profilesCount == _lastProfilesCount) {
+      return;
+    }
+
+    _lastSignalRunning = isSignalRunning;
+    _lastRunningCount = runningNodes;
+    _lastProfilesCount = profilesCount;
+
     _updateTray();
   }
 
@@ -60,9 +80,10 @@ class DesktopService with TrayListener, WindowListener {
     if (Platform.isWindows) {
       final exeDir = p.dirname(Platform.resolvedExecutable);
       final candidates = [
-        p.join(exeDir, 'data', 'flutter_assets', 'assets', 'icons', 'app_icon.ico'),
         p.join(exeDir, 'app_icon.ico'),
+        p.join(exeDir, 'data', 'flutter_assets', 'assets', 'icons', 'app_icon.ico'),
         p.join(Directory.current.path, 'assets', 'icons', 'app_icon.ico'),
+        p.join(Directory.current.path, 'windows', 'runner', 'resources', 'app_icon.ico'),
       ];
       for (final path in candidates) {
         if (File(path).existsSync()) {
@@ -85,6 +106,9 @@ class DesktopService with TrayListener, WindowListener {
   }
 
   Future<void> _updateTray() async {
+    if (_isUpdatingTray) return;
+    _isUpdatingTray = true;
+
     try {
       final iconPath = await _resolveTrayIconPath();
       await trayManager.setIcon(iconPath);
@@ -97,40 +121,91 @@ class DesktopService with TrayListener, WindowListener {
       await trayManager.setToolTip(tooltip);
 
       final menuItems = <MenuItem>[
-        MenuItem(key: 'show', label: '显示主窗口 (Show Window)'),
-        MenuItem(key: 'hide', label: '隐藏到托盘 (Hide to Tray)'),
+        MenuItem(
+          key: 'show',
+          label: '显示主窗口 (Show Window)',
+          onClick: (_) async {
+            await windowManager.show();
+            await windowManager.focus();
+          },
+        ),
+        MenuItem(
+          key: 'hide',
+          label: '隐藏到托盘 (Hide to Tray)',
+          onClick: (_) async {
+            await windowManager.hide();
+          },
+        ),
         MenuItem.separator(),
         MenuItem(
           key: 'start_all',
           label: '启动全部穿透节点 (${appState.profiles.length} 个)',
           disabled: appState.profiles.isEmpty || runningNodes == appState.profiles.length,
+          onClick: (_) async {
+            await appState.startAllAgents();
+          },
         ),
         MenuItem(
           key: 'stop_all',
           label: '停止全部穿透节点',
           disabled: runningNodes == 0,
+          onClick: (_) async {
+            await appState.stopAllAgents();
+          },
         ),
         MenuItem.separator(),
         MenuItem(
           key: 'toggle_signal',
           label: isSignalRunning ? '停止信令服务 (Stop Signal)' : '启动信令服务 (Start Signal)',
+          onClick: (_) async {
+            if (appState.isSignalRunning()) {
+              await appState.stopSignalServer();
+            } else {
+              await appState.startSignalServer();
+            }
+          },
         ),
       ];
 
       if (isSignalRunning) {
         menuItems.add(
-          MenuItem(key: 'open_web', label: '打开 Web 门户控制台'),
+          MenuItem(
+            key: 'open_web',
+            label: '打开 Web 门户控制台',
+            onClick: (_) async {
+              final url = appState.signalConfig.portalWebUrl;
+              if (Platform.isWindows) {
+                Process.run('cmd', ['/c', 'start', url]);
+              } else if (Platform.isMacOS) {
+                Process.run('open', [url]);
+              } else {
+                Process.run('xdg-open', [url]);
+              }
+            },
+          ),
         );
       }
 
       menuItems.addAll([
         MenuItem.separator(),
-        MenuItem(key: 'exit', label: '退出程序 (Exit)'),
+        MenuItem(
+          key: 'exit',
+          label: '退出程序 (Exit)',
+          onClick: (_) async {
+            await appState.stopAllAgents();
+            await appState.stopSignalServer();
+            await windowManager.destroy();
+            exit(0);
+          },
+        ),
       ]);
 
       final menu = Menu(items: menuItems);
       await trayManager.setContextMenu(menu);
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _isUpdatingTray = false;
+    }
   }
 
   void _setupNetworkWatcher() {

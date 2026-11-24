@@ -236,14 +236,21 @@ class ProcessSupervisor {
     state.status = ProcessStatus.stopping;
     _stateChangeController.add(profileId);
 
+    final pid = process.pid;
     bool killed = process.kill(ProcessSignal.sigint);
     if (!killed) {
       killed = process.kill();
+    }
+    if (Platform.isWindows) {
+      Process.run('taskkill', ['/F', '/T', '/PID', pid.toString()]);
     }
 
     Future.delayed(const Duration(seconds: 2), () {
       if (_runningProcesses.containsKey(profileId)) {
         process.kill(ProcessSignal.sigkill);
+        if (Platform.isWindows) {
+          Process.run('taskkill', ['/F', '/T', '/PID', pid.toString()]);
+        }
       }
     });
 
@@ -346,11 +353,15 @@ class ProcessSupervisor {
   Future<bool> stopSignalServer() async {
     if (_signalProcess != null) {
       _stoppingSignal = true;
+      final pid = _signalProcess!.pid;
       _signalState.status = ProcessStatus.stopping;
       _stateChangeController.add('__signal__');
 
       _signalProcess?.kill(ProcessSignal.sigint);
       _signalProcess?.kill();
+      if (Platform.isWindows) {
+        Process.run('taskkill', ['/F', '/T', '/PID', pid.toString()]);
+      }
     } else {
       _signalState.status = ProcessStatus.stopped;
       _signalState.pid = null;

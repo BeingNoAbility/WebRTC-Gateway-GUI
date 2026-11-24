@@ -203,49 +203,65 @@ class _SignalServerViewState extends State<SignalServerView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
             children: [
-              Text(
-                '信令与 Web 门户服务 (Signal Server)',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '信令与 Web 门户服务 (Signal Server)',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'WebRTC 拓扑撮合、DTLS/ICE 候选协商及免客户端 Web Portal',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
               ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () => _exportConfig(state),
-                icon: const Icon(Icons.save_alt_rounded, size: 16),
-                label: const Text('导出配置'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () => _importConfig(state),
-                icon: const Icon(Icons.file_open_rounded, size: 16),
-                label: const Text('导入配置'),
-              ),
-              const SizedBox(width: 12),
-              if (isRunning) ...[
-                OutlinedButton.icon(
-                  onPressed: () => _runHealthCheck(state),
-                  icon: _isProbingHealth
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.health_and_safety_outlined, size: 18),
-                  label: const Text('健康检查 (-health)'),
-                ),
-                const SizedBox(width: 12),
-              ],
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: isRunning ? Colors.redAccent : Colors.purpleAccent,
-                ),
-                onPressed: () {
-                  _syncConfig(state);
-                  if (isRunning) {
-                    state.stopSignalServer();
-                  } else {
-                    state.startSignalServer();
-                  }
-                },
-                icon: Icon(isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded),
-                label: Text(isRunning ? '停止信令服务' : '启动信令服务'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _exportConfig(state),
+                    icon: const Icon(Icons.save_alt_rounded, size: 16),
+                    label: const Text('导出配置'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _importConfig(state),
+                    icon: const Icon(Icons.file_open_rounded, size: 16),
+                    label: const Text('导入配置'),
+                  ),
+                  if (isRunning)
+                    OutlinedButton.icon(
+                      onPressed: () => _runHealthCheck(state),
+                      icon: _isProbingHealth
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.health_and_safety_outlined, size: 18),
+                      label: const Text('健康检查'),
+                    ),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isRunning ? Colors.redAccent : Colors.purpleAccent,
+                    ),
+                    onPressed: () {
+                      _syncConfig(state);
+                      if (isRunning) {
+                        state.stopSignalServer();
+                      } else {
+                        state.startSignalServer();
+                      }
+                    },
+                    icon: Icon(isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded),
+                    label: Text(isRunning ? '停止信令服务' : '启动信令服务'),
+                  ),
+                ],
               ),
             ],
           ),

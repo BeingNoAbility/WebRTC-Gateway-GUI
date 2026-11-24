@@ -40,6 +40,7 @@ class _LiveLogDialogState extends State<LiveLogDialog> {
   final TextEditingController _searchCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
   bool _autoScroll = true;
+  int _lastLogCount = 0;
 
   @override
   void dispose() {
@@ -49,9 +50,10 @@ class _LiveLogDialogState extends State<LiveLogDialog> {
   }
 
   void _scrollToBottom() {
-    if (_autoScroll && _scrollCtrl.hasClients) {
+    if (!mounted || !_autoScroll || !_scrollCtrl.hasClients) return;
+    try {
       _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
-    }
+    } catch (_) {}
   }
 
   @override
@@ -73,7 +75,12 @@ class _LiveLogDialogState extends State<LiveLogDialog> {
         ? logs
         : logs.where((l) => l.toLowerCase().contains(query)).toList();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (displayLogs.length != _lastLogCount) {
+      _lastLogCount = displayLogs.length;
+      if (_autoScroll) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

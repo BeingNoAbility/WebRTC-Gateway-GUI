@@ -192,11 +192,25 @@ class DiagnosticService {
         try {
           final addresses = await InternetAddress.lookup(host).timeout(const Duration(seconds: 2));
           if (addresses.isEmpty) return false;
+          final targetAddress = addresses.first;
           final packet = _buildBindingRequest(changeIP: changeIP, changePort: changePort);
           activeCompleter = Completer<Datagram?>();
-          socket?.send(packet, addresses.first, port);
+          socket?.send(packet, targetAddress, port);
           final dg = await activeCompleter!.future.timeout(const Duration(milliseconds: 1500), onTimeout: () => null);
-          return dg != null && dg.data.length >= 20;
+          if (dg == null || dg.data.length < 20) return false;
+
+          // RFC 3489 validation:
+          // A valid response to CHANGE-REQUEST MUST originate from an alternate IP or alternate port!
+          // If the reply came from the exact same server IP and port, the server ignored the attribute
+          // and simply echoed back, which is NOT a valid response to Test II / Test III.
+          if (changeIP && dg.address == targetAddress) {
+            return false;
+          }
+          if (changePort && dg.port == port) {
+            return false;
+          }
+
+          return true;
         } catch (_) {
           return false;
         }
