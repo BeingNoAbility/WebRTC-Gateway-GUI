@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../core/i18n.dart';
@@ -12,11 +13,12 @@ class DiagnosticsView extends StatefulWidget {
 }
 
 class _DiagnosticsViewState extends State<DiagnosticsView> {
-  NatType _natType = NatType.fullCone;
+  NatType _natType = NatType.unknown;
   bool _detectingNat = false;
 
   List<StunLatencyResult> _stunResults = [];
   bool _pingingStun = false;
+  bool _hasPingedStun = false;
 
   @override
   void initState() {
@@ -25,12 +27,12 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
   }
 
   void _loadInitialStunList() {
-    _stunResults = DiagnosticService.defaultStunServers.map((s) {
-      return StunLatencyResult(server: s, latencyMs: 0, available: true);
-    }).toList();
+    _stunResults = DiagnosticService.defaultStunServers
+        .map((s) => StunLatencyResult(server: s, latencyMs: 0, available: true))
+        .toList();
   }
 
-  void _runNatDetection(DiagnosticService service) async {
+  Future<void> _runNatDetection(DiagnosticService service) async {
     setState(() {
       _detectingNat = true;
       _natType = NatType.detecting;
@@ -46,7 +48,7 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
     }
   }
 
-  void _runStunPing(DiagnosticService service) async {
+  Future<void> _runStunPing(DiagnosticService service) async {
     setState(() => _pingingStun = true);
 
     final results = await service.rankStunServers();
@@ -55,8 +57,39 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
       setState(() {
         _stunResults = results;
         _pingingStun = false;
+        _hasPingedStun = true;
       });
     }
+  }
+
+  void _applyBestStunToAll(AppState state, AppI18n i18n) {
+    final available = _stunResults
+        .where((r) => r.available && r.latencyMs >= 0)
+        .take(3)
+        .map((r) => r.server.startsWith('stun:') ? r.server : 'stun:${r.server}')
+        .toList();
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            i18n.pick('当前没有可用的 STUN 服务器，请先完成测速', 'No reachable STUN servers found. Run ping first.'),
+          ),
+        ),
+      );
+      return;
+    }
+
+    state.applyBestStunServers(available);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          i18n.pick(
+            '已将最优 STUN (${available.join(", ")}) 应用到全部 ${state.profiles.length} 个穿透节点',
+            'Applied fastest STUN servers (${available.join(", ")}) to all ${state.profiles.length} agents.',
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -64,6 +97,38 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
     final state = context.watch<AppState>();
     final i18n = AppI18n();
     final diag = state.diagnosticService;
+    final colorScheme = Theme.of(context).colorScheme;
+    final muted = colorScheme.onSurfaceVariant;
+
+    final Color bannerColor;
+    final IconData bannerIcon;
+    final String bannerHint;
+
+    if (_natType == NatType.unknown || _natType == NatType.detecting) {
+      bannerColor = Colors.blueGrey;
+      bannerIcon = Icons.help_outline_rounded;
+      bannerHint = i18n.pick(
+        '点击右上角按钮即可探测本地 UDP 与 NAT 类型，提前预判 P2P 直连成功率与是否需要配置 TURN 中继。',
+        'Click the button on the top-right to probe local UDP & NAT type and see whether TURN relay is needed.',
+      );
+    } else if (_natType.isDirectP2PRecommended) {
+      bannerColor = Colors.green;
+      bannerIcon = Icons.check_circle_rounded;
+      bannerHint = i18n.pick(
+        '当前宽带网络环境良好，支持纯点对点直连（零中继流量消耗，最高带宽）。',
+        'Your network supports direct P2P hole-punching with zero relay cost.',
+      );
+    } else {
+      bannerColor = Colors.orange;
+      bannerIcon = Icons.info_rounded;
+      bannerHint = i18n.pick(
+        '当前网络为对称型 NAT 或 UDP 受阻，跨网络打洞可能失败，建议在节点设置中填入 TURN 中继服务器保底连通。',
+        'Symmetric NAT or UDP block detected. Configure a TURN relay server in agent settings for reliable fallback.',
+      );
+    }
+
+    final hasReachablePing =
+        _hasPingedStun && _stunResults.any((r) => r.available && r.latencyMs >= 0);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -78,7 +143,8 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
 
           // 1. NAT Type Diagnostic Card
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -91,16 +157,24 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                       const SizedBox(width: 8),
                       Text(
                         i18n.t('diag_nat_title'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const Spacer(),
                       FilledButton.icon(
-                        onPressed: _detectingNat ? null : () => _runNatDetection(diag),
+                        onPressed: _detectingNat
+                            ? null
+                            : () => unawaited(_runNatDetection(diag)),
                         icon: _detectingNat
                             ? const SizedBox(
                                 width: 14,
                                 height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Icon(Icons.refresh_rounded, size: 18),
                         label: Text(i18n.t('diag_nat_btn')),
@@ -111,38 +185,33 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _natType.isDirectP2PRecommended
-                          ? Colors.green.withValues(alpha: 0.08)
-                          : Colors.orange.withValues(alpha: 0.08),
+                      color: bannerColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _natType.isDirectP2PRecommended
-                            ? Colors.green.withValues(alpha: 0.3)
-                            : Colors.orange.withValues(alpha: 0.3),
+                        color: bannerColor.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          _natType.isDirectP2PRecommended ? Icons.check_circle_rounded : Icons.info_rounded,
-                          color: _natType.isDirectP2PRecommended ? Colors.green : Colors.orange,
-                          size: 32,
-                        ),
+                        Icon(bannerIcon, color: bannerColor, size: 32),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                i18n.currentLocale == 'zh' ? _natType.displayNameZh : _natType.displayNameEn,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                i18n.isEnglish
+                                    ? _natType.displayNameEn
+                                    : _natType.displayNameZh,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _natType.isDirectP2PRecommended
-                                    ? '当前宽带网络环境极佳，支持 100% 纯点对点直连（零中继流量消耗，最高带宽）。'
-                                    : '当前网络为对称型 NAT，跨运营商打洞可能受阻，建议在配置中填写 TURN 中继服务器以保底连通。',
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                bannerHint,
+                                style: TextStyle(color: muted, fontSize: 12),
                               ),
                             ],
                           ),
@@ -158,32 +227,65 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
 
           // 2. Public STUN Server Latency Ranking
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
-                      const Icon(Icons.network_ping_rounded, color: Colors.teal),
-                      const SizedBox(width: 8),
-                      Text(
-                        i18n.t('diag_stun_title'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.network_ping_rounded,
+                            color: Colors.teal,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            i18n.t('diag_stun_title'),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: _pingingStun ? null : () => _runStunPing(diag),
-                        icon: _pingingStun
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.speed_rounded, size: 18),
-                        label: Text(i18n.t('diag_stun_btn')),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (hasReachablePing && state.profiles.isNotEmpty) ...[
+                            OutlinedButton.icon(
+                              onPressed: () => _applyBestStunToAll(state, i18n),
+                              icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+                              label: Text(i18n.t('diag_apply_stun_btn')),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          FilledButton.icon(
+                            onPressed: _pingingStun
+                                ? null
+                                : () => unawaited(_runStunPing(diag)),
+                            icon: _pingingStun
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.speed_rounded, size: 18),
+                            label: Text(i18n.t('diag_stun_btn')),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -198,6 +300,8 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                       Color latencyColor = Colors.green;
                       if (!item.available) {
                         latencyColor = Colors.red;
+                      } else if (!_hasPingedStun) {
+                        latencyColor = muted;
                       } else if (item.latencyMs > 150) {
                         latencyColor = Colors.orange;
                       }
@@ -211,7 +315,9 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                               height: 24,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: i < 3 ? Colors.blueAccent.withValues(alpha: 0.15) : Colors.black12,
+                                color: i < 3
+                                    ? Colors.blueAccent.withValues(alpha: 0.15)
+                                    : colorScheme.surfaceContainerHighest,
                               ),
                               child: Center(
                                 child: Text(
@@ -219,7 +325,7 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
-                                    color: i < 3 ? Colors.blueAccent : Colors.grey,
+                                    color: i < 3 ? Colors.blueAccent : muted,
                                   ),
                                 ),
                               ),
@@ -228,13 +334,23 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                             Expanded(
                               child: Text(
                                 item.server,
-                                style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w500),
+                                style: const TextStyle(
+                                  fontFamily: 'Consolas',
+                                  fontFamilyFallback: [
+                                    'Courier New',
+                                    'monospace',
+                                  ],
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                             Text(
                               item.available
-                                  ? (item.latencyMs == 0 ? '待测速' : '${item.latencyMs} ms')
-                                  : '连接超时',
+                                  ? (!_hasPingedStun
+                                      ? i18n.pick('待测速', 'Pending')
+                                      : '${item.latencyMs} ms')
+                                  : i18n.pick('连接超时', 'Timeout'),
                               style: TextStyle(
                                 color: latencyColor,
                                 fontWeight: FontWeight.bold,
