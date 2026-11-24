@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/i18n.dart';
 import '../models/agent_profile.dart';
+import '../models/app_settings.dart';
 import '../models/runtime_state.dart';
 import '../models/signal_profile.dart';
+import '../services/autostart_service.dart';
 import '../services/binary_manager.dart';
 import '../services/config_repository.dart';
 import '../services/diagnostic_service.dart';
@@ -16,6 +18,7 @@ class AppState extends ChangeNotifier {
   final ProcessSupervisor supervisor;
   final MetricsService metricsService;
   final DiagnosticService diagnosticService;
+  final AutostartService autostartService = AutostartService();
 
   int _selectedTabIndex = 0;
   int get selectedTabIndex => _selectedTabIndex;
@@ -23,7 +26,8 @@ class AppState extends ChangeNotifier {
   String? _selectedLogProfileId;
   String? get selectedLogProfileId => _selectedLogProfileId;
 
-  SignalServerConfig signalConfig = SignalServerConfig();
+  late SignalServerConfig signalConfig;
+  late AppSettings appSettings;
 
   Timer? _metricsTimer;
   StreamSubscription? _stateSub;
@@ -36,6 +40,9 @@ class AppState extends ChangeNotifier {
     required this.metricsService,
     required this.diagnosticService,
   }) {
+    signalConfig = configRepo.signalConfig;
+    appSettings = configRepo.settings;
+
     _stateSub = supervisor.onStateChange.listen((_) {
       notifyListeners();
     });
@@ -64,6 +71,23 @@ class AppState extends ChangeNotifier {
   bool isRunning(String profileId) => supervisor.isRunning(profileId);
 
   int get runningCount => profiles.where((p) => isRunning(p.id)).length;
+
+  CloseAction get closeAction => appSettings.closeAction;
+  void setCloseAction(CloseAction action) {
+    appSettings.closeAction = action;
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
+  bool get startOnBoot => appSettings.startOnBoot;
+  Future<void> setStartOnBoot(bool enable) async {
+    final ok = await autostartService.setEnabled(enable);
+    if (ok) {
+      appSettings.startOnBoot = enable;
+      configRepo.updateSettings(appSettings);
+      notifyListeners();
+    }
+  }
 
   Future<void> startAgent(AgentProfile profile) async {
     await supervisor.startAgent(profile);
@@ -113,12 +137,14 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> startSignalServer() async {
+    configRepo.updateSignalConfig(signalConfig);
     await supervisor.startSignalServer(signalConfig);
     notifyListeners();
   }
 
   Future<void> stopSignalServer() async {
     await supervisor.stopSignalServer();
+    metricsService.clearSignal();
     notifyListeners();
   }
 
@@ -130,6 +156,11 @@ class AppState extends ChangeNotifier {
 
   AgentRuntimeState get signalState => supervisor.getSignalState();
 
+  void syncSignalConfig() {
+    configRepo.updateSignalConfig(signalConfig);
+    notifyListeners();
+  }
+
   void clearLogs([String? profileId]) {
     supervisor.clearLogs(profileId);
     notifyListeners();
@@ -137,13 +168,38 @@ class AppState extends ChangeNotifier {
 
   void toggleLocale() {
     final current = AppI18n().currentLocale;
-    AppI18n().setLocale(current == 'zh' ? 'en' : 'zh');
+    final next = current == 'zh' ? 'en' : 'zh';
+    AppI18n().setLocale(next);
+    appSettings.locale = next;
+    configRepo.updateSettings(appSettings);
     notifyListeners();
+  }
+
+  Future<void> exportAllConfig(String targetPath) async {
+    await configRepo.exportAllToFile(targetPath);
+  }
+
+  Future<void> exportAgentsConfig(String targetPath) async {
+    await configRepo.exportAgentsToFile(targetPath);
+  }
+
+  Future<void> exportSignalConfig(String targetPath) async {
+    await configRepo.exportSignalToFile(targetPath);
+  }
+
+  Future<Map<String, dynamic>> importConfigFile(String filePath) async {
+    final res = await configRepo.importFromFile(filePath);
+    signalConfig = configRepo.signalConfig;
+    appSettings = configRepo.settings;
+    notifyListeners();
+    return res;
   }
 
   void _startMetricsPolling() {
     _metricsTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
       bool updated = false;
+
+      // 1. Poll running agents
       for (final profile in profiles) {
         final state = getRuntimeState(profile.id);
         if (state.status == ProcessStatus.running && state.metricsPort != null) {
@@ -151,6 +207,13 @@ class AppState extends ChangeNotifier {
           if (res != null) updated = true;
         }
       }
+
+      // 2. Poll running Signal server
+      if (isSignalRunning()) {
+        final sigRes = await metricsService.pollSignalMetrics(signalConfig.addr, signalConfig.metricsAddr);
+        if (sigRes != null) updated = true;
+      }
+
       if (updated) {
         notifyListeners();
       }

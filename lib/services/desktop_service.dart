@@ -3,11 +3,14 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
+import '../models/app_settings.dart';
 import '../state/app_state.dart';
 
 class DesktopService with TrayListener, WindowListener {
   final AppState appState;
   final Connectivity _connectivity = Connectivity();
+
+  static VoidCallback? onRequestClosePrompt;
 
   DesktopService(this.appState);
 
@@ -27,6 +30,7 @@ class DesktopService with TrayListener, WindowListener {
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.setPreventClose(true);
         await windowManager.show();
         await windowManager.focus();
       });
@@ -109,6 +113,7 @@ class DesktopService with TrayListener, WindowListener {
         break;
       case 'exit':
         await appState.stopAllAgents();
+        await appState.stopSignalServer();
         await windowManager.destroy();
         exit(0);
     }
@@ -116,12 +121,20 @@ class DesktopService with TrayListener, WindowListener {
 
   @override
   void onWindowClose() async {
-    // Minimize to tray on close
-    final isPrevent = await windowManager.isPreventClose();
-    if (isPrevent) {
+    final action = appState.closeAction;
+    if (action == CloseAction.minimizeToTray) {
       await windowManager.hide();
+    } else if (action == CloseAction.exitApp) {
+      await appState.stopAllAgents();
+      await appState.stopSignalServer();
+      await windowManager.destroy();
+      exit(0);
     } else {
-      await windowManager.hide();
+      if (onRequestClosePrompt != null) {
+        onRequestClosePrompt!();
+      } else {
+        await windowManager.hide();
+      }
     }
   }
 

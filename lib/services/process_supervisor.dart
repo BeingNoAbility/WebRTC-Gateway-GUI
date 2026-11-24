@@ -12,6 +12,8 @@ class ProcessSupervisor {
 
   // Running processes map: profileId -> Process
   final Map<String, Process> _runningProcesses = {};
+  final Set<String> _stoppingAgents = {};
+  bool _stoppingSignal = false;
   
   // Runtime states: profileId -> AgentRuntimeState
   final Map<String, AgentRuntimeState> _runtimeStates = {};
@@ -196,15 +198,14 @@ class ProcessSupervisor {
 
       // Handle process exit
       process.exitCode.then((code) {
+        final wasStopping = _stoppingAgents.remove(profile.id) || state.status == ProcessStatus.stopping;
         _runningProcesses.remove(profile.id);
-        if (state.status == ProcessStatus.running || state.status == ProcessStatus.stopping) {
-          state.status = ProcessStatus.stopped;
-        }
-        if (code != 0 && state.status != ProcessStatus.stopped) {
-          state.status = ProcessStatus.error;
-          state.lastError = '进程退出，退出码: $code';
-        }
+        state.status = ProcessStatus.stopped;
         state.pid = null;
+        if (!wasStopping && code != 0) {
+          state.status = ProcessStatus.error;
+          state.lastError = '进程异常退出，退出码: $code';
+        }
         _stateChangeController.add(profile.id);
       });
 
@@ -231,6 +232,7 @@ class ProcessSupervisor {
       return true;
     }
 
+    _stoppingAgents.add(profileId);
     state.status = ProcessStatus.stopping;
     _stateChangeController.add(profileId);
 
@@ -320,9 +322,11 @@ class ProcessSupervisor {
 
       process.exitCode.then((code) {
         _signalProcess = null;
+        final wasStopping = _stoppingSignal || _signalState.status == ProcessStatus.stopping;
+        _stoppingSignal = false;
         _signalState.status = ProcessStatus.stopped;
         _signalState.pid = null;
-        if (code != 0) {
+        if (!wasStopping && code != 0) {
           _signalState.status = ProcessStatus.error;
           _signalState.lastError = 'Signal 服务异常退出: $code';
         }
@@ -341,16 +345,17 @@ class ProcessSupervisor {
   /// Stops local Signal server
   Future<bool> stopSignalServer() async {
     if (_signalProcess != null) {
+      _stoppingSignal = true;
       _signalState.status = ProcessStatus.stopping;
       _stateChangeController.add('__signal__');
 
       _signalProcess?.kill(ProcessSignal.sigint);
       _signalProcess?.kill();
-      _signalProcess = null;
+    } else {
+      _signalState.status = ProcessStatus.stopped;
+      _signalState.pid = null;
+      _stateChangeController.add('__signal__');
     }
-    _signalState.status = ProcessStatus.stopped;
-    _signalState.pid = null;
-    _stateChangeController.add('__signal__');
     return true;
   }
 

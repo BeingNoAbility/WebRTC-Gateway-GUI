@@ -2,7 +2,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../core/i18n.dart';
-import '../../models/metrics_data.dart';
 import '../../state/app_state.dart';
 import 'stream_inspector_view.dart';
 
@@ -24,7 +23,7 @@ class DashboardView extends StatelessWidget {
     final state = context.watch<AppState>();
     final i18n = AppI18n();
 
-    // Aggregate statistics
+    // Aggregate statistics for agents
     double totalUpSpeed = 0;
     double totalDownSpeed = 0;
     int totalStreams = 0;
@@ -39,12 +38,17 @@ class DashboardView extends StatelessWidget {
       }
     }
 
+    // Signal server metrics
+    final isSignalRunning = state.isSignalRunning();
+    final signalRuntime = state.signalState;
+    final sigMetrics = state.metricsService.latestSignalMetrics;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title
+          // Header
           Row(
             children: [
               Text(
@@ -54,20 +58,53 @@ class DashboardView extends StatelessWidget {
               const Spacer(),
               Chip(
                 avatar: Icon(
-                  state.runningCount > 0 ? Icons.check_circle : Icons.pause_circle_outline,
-                  color: state.runningCount > 0 ? Colors.green : Colors.grey,
+                  state.runningCount > 0 || isSignalRunning ? Icons.check_circle : Icons.pause_circle_outline,
+                  color: state.runningCount > 0 || isSignalRunning ? Colors.green : Colors.grey,
                   size: 16,
                 ),
                 label: Text(
-                  state.runningCount > 0 ? 'P2P 服务活跃中' : '服务待机中',
+                  state.runningCount > 0 || isSignalRunning ? '服务活跃运行中' : '系统空闲待机中',
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Stat Cards Grid
+          // ==========================================
+          // SECTION 1: 穿透节点状态看板 (Agent Section)
+          // ==========================================
+          Row(
+            children: [
+              const Icon(Icons.hub_rounded, color: Colors.blueAccent, size: 22),
+              const SizedBox(width: 8),
+              const Text(
+                '穿透节点运行看板 (Agent Nodes)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${state.runningCount} / ${state.profiles.length} 在线',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => state.setTabIndex(1),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                label: const Text('管理节点'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Agent Stat Cards Grid
           Row(
             children: [
               Expanded(
@@ -100,14 +137,14 @@ class DashboardView extends StatelessWidget {
               Expanded(
                 child: _StatCard(
                   title: i18n.t('dashboard_total_nodes'),
-                  value: '${state.runningCount} / ${state.profiles.length}',
+                  value: '${state.runningCount} 在线',
                   icon: Icons.devices_rounded,
                   color: Colors.teal,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Real-time Bandwidth Line Chart
           Card(
@@ -131,7 +168,7 @@ class DashboardView extends StatelessWidget {
                           SizedBox(width: 8),
                           Text(
                             '实时聚合吞吐速率 (Real-time Throughput)',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -145,19 +182,154 @@ class DashboardView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   SizedBox(
-                    height: 220,
-                    child: _BandwidthChart(profiles: state.profiles, metrics: state.metricsService),
+                    height: 190,
+                    child: _ThroughputChart(state: state),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // HUD 2.0 Stream Inspector Section
+          // Active Stream Inspector HUD
           const StreamInspectorView(),
+          const SizedBox(height: 32),
+
+          // ==========================================
+          // SECTION 2: 信令服务看板 (Signal Section)
+          // ==========================================
+          Row(
+            children: [
+              const Icon(Icons.dns_rounded, color: Colors.purpleAccent, size: 22),
+              const SizedBox(width: 8),
+              const Text(
+                '信令与控制台看板 (Signal Server)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isSignalRunning ? Colors.green.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isSignalRunning ? '运行中 (PID: ${signalRuntime.pid ?? '活跃'})' : '已停止',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isSignalRunning ? Colors.green : Colors.grey,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => state.setTabIndex(2),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                label: const Text('信令工作台'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Signal Stat Cards Grid
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  title: '信令监听地址',
+                  value: state.signalConfig.addr,
+                  icon: Icons.sensors_rounded,
+                  color: Colors.purpleAccent,
+                  subtitle: state.signalConfig.tlsAuto ? '自签 ECDSA TLS' : '明文 / 自定义证书',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _StatCard(
+                  title: '集群注册 Agent 数',
+                  value: isSignalRunning ? '${sigMetrics?.registeredNodes ?? 0} 个' : '--',
+                  icon: Icons.hub_outlined,
+                  color: Colors.deepPurple,
+                  subtitle: '已在线握手注册的节点',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _StatCard(
+                  title: '活跃访客客户端',
+                  value: isSignalRunning ? '${sigMetrics?.activeClients ?? 0} 个' : '--',
+                  icon: Icons.person_pin_circle_rounded,
+                  color: Colors.teal,
+                  subtitle: '正在通过浏览器直连访问',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _StatCard(
+                  title: '累计信令消息量',
+                  value: isSignalRunning ? '${sigMetrics?.signalingMessagesTotal ?? 0}' : '--',
+                  icon: Icons.swap_vert_circle_rounded,
+                  color: Colors.blueGrey,
+                  subtitle: '限流拦截: ${sigMetrics?.ratelimitRejectedTotal ?? 0}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Signal Quick Control Bar
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              child: Row(
+                children: [
+                  Icon(
+                    isSignalRunning ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                    color: isSignalRunning ? Colors.green : Colors.grey,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isSignalRunning
+                              ? '信令服务正常就绪，Web 访问入口: ${state.signalConfig.portalWebUrl}'
+                              : '本地信令服务当前处于停止状态，点击右侧开关可即时拉起',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        if (signalRuntime.lastError != null && !isSignalRunning) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            signalRuntime.lastError!,
+                            style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Switch(
+                    value: isSignalRunning,
+                    activeThumbColor: Colors.purpleAccent,
+                    onChanged: (val) {
+                      if (val) {
+                        state.startSignalServer();
+                      } else {
+                        state.stopSignalServer();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -169,49 +341,55 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final String? subtitle;
 
   const _StatCard({
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
+    this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Colors.black12),
-      ),
       child: Padding(
-        padding: const EdgeInsets.all(18.0),
-        child: Row(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 26),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Icon(icon, size: 20, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle!,
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ],
         ),
       ),
@@ -242,30 +420,43 @@ class _LegendIndicator extends StatelessWidget {
   }
 }
 
-class _BandwidthChart extends StatelessWidget {
-  final List<dynamic> profiles;
-  final dynamic metrics;
+class _ThroughputChart extends StatelessWidget {
+  final AppState state;
 
-  const _BandwidthChart({required this.profiles, required this.metrics});
+  const _ThroughputChart({required this.state});
 
   @override
   Widget build(BuildContext context) {
     final upSpots = <FlSpot>[];
     final downSpots = <FlSpot>[];
 
-    // Build timeline points from the first running profile history
-    final history = profiles.isNotEmpty ? metrics.getHistory(profiles.first.id) as List<MetricsSnapshot> : <MetricsSnapshot>[];
+    // Compute aggregate speed history across all running agents
+    int maxLength = 0;
+    for (final p in state.profiles) {
+      final h = state.metricsService.getHistory(p.id);
+      if (h.length > maxLength) maxLength = h.length;
+    }
 
-    if (history.isEmpty) {
+    if (maxLength == 0) {
+      // Empty baseline
       for (int i = 0; i < 20; i++) {
         upSpots.add(FlSpot(i.toDouble(), 0));
         downSpots.add(FlSpot(i.toDouble(), 0));
       }
     } else {
-      for (int i = 0; i < history.length; i++) {
-        final snap = history[i];
-        upSpots.add(FlSpot(i.toDouble(), (snap.uploadBytesPerSec / 1024.0)));
-        downSpots.add(FlSpot(i.toDouble(), (snap.downloadBytesPerSec / 1024.0)));
+      for (int i = 0; i < maxLength; i++) {
+        double aggUp = 0;
+        double aggDown = 0;
+        for (final p in state.profiles) {
+          final h = state.metricsService.getHistory(p.id);
+          if (i < h.length) {
+            aggUp += h[i].uploadBytesPerSec;
+            aggDown += h[i].downloadBytesPerSec;
+          }
+        }
+        // Convert to KB/s for display scaling
+        upSpots.add(FlSpot(i.toDouble(), aggUp / 1024.0));
+        downSpots.add(FlSpot(i.toDouble(), aggDown / 1024.0));
       }
     }
 
@@ -274,21 +465,26 @@ class _BandwidthChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (val) => FlLine(color: Colors.black.withValues(alpha: 0.05), strokeWidth: 1),
+          horizontalInterval: 50,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: Colors.grey.withValues(alpha: 0.15),
+            strokeWidth: 1,
+          ),
         ),
         titlesData: FlTitlesData(
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 42,
-              getTitlesWidget: (val, meta) {
-                return Text('${val.toInt()} KB', style: const TextStyle(fontSize: 10, color: Colors.grey));
-              },
+              reservedSize: 45,
+              getTitlesWidget: (val, meta) => Text(
+                '${val.toInt()}K',
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
             ),
           ),
+          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: false),
         lineBarsData: [

@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
@@ -118,6 +120,51 @@ class _SignalServerViewState extends State<SignalServerView> {
     }
   }
 
+  void _exportConfig(AppState state) async {
+    _syncConfig(state);
+    final jsonMap = state.signalConfig.toJson();
+    final bytes = Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent('  ').convert(jsonMap)));
+    final uri = await FilePicker.saveFile(
+      dialogTitle: '导出信令服务配置',
+      fileName: 'webrtc_gateway_signal.json',
+      bytes: bytes,
+    );
+    if (uri != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已成功导出信令配置到: ${uri.path}')),
+      );
+    }
+  }
+
+  void _importConfig(AppState state) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result.isNotEmpty && result.first.path != null) {
+      await state.importConfigFile(result.first.path!);
+      final cfg = state.signalConfig;
+      setState(() {
+        _addrCtrl.text = cfg.addr;
+        _staticCtrl.text = cfg.staticDir;
+        _metricsCtrl.text = cfg.metricsAddr;
+        _tlsAuto = cfg.tlsAuto;
+        _tlsCertCtrl.text = cfg.tlsCert;
+        _tlsKeyCtrl.text = cfg.tlsKey;
+        _allowedOriginsCtrl.text = cfg.allowedOrigins;
+        _portalDomainCtrl.text = cfg.portalDomain;
+        _signalSecretCtrl.text = cfg.signalSecret;
+        _trustedProxiesCtrl.text = cfg.trustedProxies;
+        _maxIpConns = cfg.maxIpConns;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已成功导入信令服务配置并更新表单')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -149,13 +196,25 @@ class _SignalServerViewState extends State<SignalServerView> {
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () => _exportConfig(state),
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text('导出配置'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _importConfig(state),
+                icon: const Icon(Icons.upload_file_rounded, size: 16),
+                label: const Text('导入配置'),
+              ),
+              const SizedBox(width: 12),
               if (isRunning) ...[
                 OutlinedButton.icon(
                   onPressed: () => _runHealthCheck(state),
                   icon: _isProbingHealth
                       ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.health_and_safety_outlined, size: 18),
-                  label: const Text('健康探针检查 (-health)'),
+                  label: const Text('健康检查 (-health)'),
                 ),
                 const SizedBox(width: 12),
               ],

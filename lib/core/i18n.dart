@@ -55,8 +55,8 @@ class AppI18n {
       'diag_stun_title': '公共 STUN 服务器低延迟测速',
       'diag_stun_btn': '开始测速与排序',
 
-      'signal_server_title': '内置信令服务端管理器',
-      'signal_server_desc': '在局域网或私有网络下一键启动内置信令协调服务与 Web 控制台。',
+      'signal_server_title': '信令与 Web 门户服务',
+      'signal_server_desc': '启动内置信令协调服务与免客户端 Web Portal 控制台。',
 
       'settings_binary_title': '底层核心二进制管理',
       'settings_binary_custom': '自定义 agent 二进制文件',
