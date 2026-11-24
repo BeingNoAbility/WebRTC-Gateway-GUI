@@ -14,31 +14,31 @@ A modern cross-platform desktop GUI for **[WebRTC-Gateway](https://github.com/Be
 - **多 Agent 实例并发管理 (Multi-Agent Concurrent Pool)**：支持同时配置并运行多个独立的穿透节点，内部自动动态调度 Prometheus 端口（如 `:9091`, `:9092`...），彻底消除多实例端口冲突。
 - **开箱即用与灵活核心管理 (Battery-Included & Custom Binaries)**：
   - GitHub CI 自动化拉取上游 `BeingNoAbility/WebRTC-Gateway` 最新 Release 并搭载对应系统平台的二进制文件（Windows 下解压即可直接穿透，无需手动配置 Go 环境）。
-  - 支持在设置中点选本地任意第三方或自编译 `agent.exe`，自动执行 `-help` 探测并回显版本号。
+  - 支持在设置中点选本地任意第三方或自编译 `agent.exe` / `signal.exe`，自动执行 `-help` 探测并回显版本号，支持自动下载解压与 SHA256 校验更新。
 - **开箱即用三模全场景穿透 (Multi-Mode)**：
   - **本地服务反代 (`-target`)**：内置 Ollama (`11434`)、ComfyUI (`8188`)、Jellyfin (`8096`)、群晖 NAS (`5000`) 等常用本地应用端口预设。
   - **静态目录托管 (`-dir`)**：点选文件夹，一键通过 P2P 共享整个目录。
   - **单文件高速直传 (`-file`)**：点选大文件，生成点对点流式下载通道。
 - **Multi-PC 物理链路聚合 (Trunking Slider)**：直观滑动条（1~8 路），充分释放多核 CPU 算力，突破 Chromium 单核 SCTP 吞吐瓶颈。
-- **极客观测仪与流级强杀 (HUD 2.0 & Stream Control)**：
-  - 实时绘制聚合/单节点上下行网速（KB/s、MB/s）与活跃流曲线。
-  - 实时列出活跃数据流，遇到卡死或大文件传输时支持一键 `RST_STREAM` 强行重置。
-- **极速分享与访客免客户端直连 (Quick Share)**：
-  - 自动生成 Web 直连访问 URL（`https://signal.domain/#node-id`）。
-  - 动态渲染移动端扫码直连二维码。
-  - 支持配置有效时长的 HMAC-SHA256 签名安全分享链接。
-  - **一键复制格式化分享卡片**：优雅格式排版，一键粘贴至微信/QQ/钉钉。
+- **实时流量看板与节点会话监控 (Dashboard & Mux Monitor)**：
+  - 实时绘制时间戳对齐的聚合上下行网速（B/s、KB/s、MB/s）与活跃流曲线。
+  - 实时监控各节点活跃逻辑流、PeerConnection 链路与背压拒绝数，支持一键平滑重启重置节点通道（单流级 `RST_STREAM` 强杀可在访客 Web Portal 右下角 HUD 悬浮球内操作）。
+- **极速分享与安全时效签名链接 (Quick Share & HMAC-SHA256)**：
+  - 自动生成 Web 直连访问 URL（`https://signal.domain/#node-id`）及移动端扫码二维码。
+  - 设有访问密码的节点支持直接在 GUI 内生成上游兼容的 **HMAC-SHA256 时效签名安全链接**（`?exp=...&sign=...`），访客免输密码直连、到期自动失效、默认不在分享卡片暴露明文密码。
+  - 未设置访客密码时弹出醒目安全确认，防止内网敏感服务意外裸奔。
 - **网络诊断与打洞连通性优化 (Diagnostics)**：
-  - **NAT 类型诊断 (RFC 3489)**：探测 Full Cone、Restricted Cone、Symmetric NAT (NAT 4)，提前获知 P2P 穿透潜力。
-  - **公共 STUN 低延迟测速**：内置 Google、Cloudflare、腾讯、小米等优质 STUN 列表，异步 Ping 延迟并排重排序。
+  - **NAT 类型诊断 (RFC 3489 / 5780)**：探测 Open Internet、Cone NAT、Symmetric NAT (NAT 4)，提前获知 P2P 穿透潜力。
+  - **公共 STUN 低延迟测速**：内置 Google、Cloudflare、腾讯、小米等优质 STUN 列表，异步 Ping 测速排序并支持一键应用最优服务器到全部节点。
 - **本地信令服务端管理 (Local Signal Manager)**：
-  - GUI 内一键开启本地内置 `signal.exe`（支持一键 `-tls-auto` 自签证书），专为无公网局域网测试与私有信令部署打造。
+  - GUI 内一键开启本地内置 `signal.exe`（默认开启 `-tls-auto` 自签证书与严格同源策略），专为局域网与私有信令部署打造。
 - **Windows 桌面深度融合 (Desktop Integration)**：
-  - 系统托盘常驻，支持关闭最小化至托盘与托盘右键快捷菜单。
-  - **网络变更原地自愈 (Network Auto-Heal)**：监听笔记本休眠唤醒、Wi-Fi 切换与断线重连，自动触发 Agent 原地自愈。
-- **配置全量备份与双语国际化 (Backup & Zero-Dep i18n)**：
-  - 一键导出/导入所有节点配置为 `.json` 文件。
-  - 简体中文与 English 原地无感热切换。
+  - 单实例互斥锁（重复点击图标自动唤起托盘中的已有窗口）。
+  - 系统托盘常驻、关闭确认与静默开机自启动（`--minimized` + 节点/信令随软件自动拉起）。
+  - **网络恢复自愈 (Network Auto-Heal)**：监听真实断网重连跃迁，防抖后自动恢复在线穿透节点。
+- **配置全量备份、主题与双语国际化 (Backup, Dark Mode & i18n)**：
+  - 原子化写入便携配置文件，一键导出/导入标准上游 `agent.yaml` / `server.yaml` 与全量 `.json` 备份。
+  - 支持浅色 / 深色 / 跟随系统主题、MiSans 字体排版及简体中文与 English 原地热切换。
 
 ---
 

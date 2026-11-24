@@ -7,6 +7,22 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  // Enforce single-instance on Windows: if already running, bring existing window to front.
+  HANDLE single_instance_mutex =
+      ::CreateMutexW(nullptr, TRUE, L"Local\\WebRTCGatewayGUI_SingleInstance");
+  if (single_instance_mutex != nullptr &&
+      ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    HWND existing_hwnd =
+        ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"WebRTC Gateway");
+    if (existing_hwnd != nullptr) {
+      ::ShowWindow(existing_hwnd, SW_SHOW);
+      ::ShowWindow(existing_hwnd, SW_RESTORE);
+      ::SetForegroundWindow(existing_hwnd);
+    }
+    ::CloseHandle(single_instance_mutex);
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -26,8 +42,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
+  Win32Window::Size size(1220, 780);
   if (!window.Create(L"WebRTC Gateway", origin, size)) {
+    if (single_instance_mutex != nullptr) {
+      ::CloseHandle(single_instance_mutex);
+    }
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
@@ -39,5 +58,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
+  if (single_instance_mutex != nullptr) {
+    ::ReleaseMutex(single_instance_mutex);
+    ::CloseHandle(single_instance_mutex);
+  }
   return EXIT_SUCCESS;
 }

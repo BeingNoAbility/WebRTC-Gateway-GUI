@@ -81,26 +81,30 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p bin_upstream
-          mkdir -p bin
+          mkdir -p bin_upstream bin_extract bin
 
           echo "Fetching latest release archive from BeingNoAbility/WebRTC-Gateway matching ${{ matrix.goos }}_${{ matrix.goarch }}..."
-          gh release download --repo BeingNoAbility/WebRTC-Gateway --pattern "*${{ matrix.goos }}_${{ matrix.goarch }}*" --dir bin_upstream || true
+          gh release download --repo BeingNoAbility/WebRTC-Gateway --pattern "*${{ matrix.goos }}_${{ matrix.goarch }}*" --dir bin_upstream
 
-          # Extract binaries if downloaded
           ARCHIVE_FILE=$(find bin_upstream -type f -name "*${{ matrix.goos }}_${{ matrix.goarch }}*" | head -n 1)
-          if [ -n "$ARCHIVE_FILE" ]; then
-            echo "Found archive: $ARCHIVE_FILE. Extracting..."
-            if [[ "$ARCHIVE_FILE" == *.zip ]]; then
-              unzip -o "$ARCHIVE_FILE" -d bin/
-            else
-              tar -xzf "$ARCHIVE_FILE" -C bin/
-            fi
-            echo "Bundled binaries into bin/:"
-            ls -la bin/
-          else
-            echo "Warning: Upstream release archive not found via pattern, creating placeholder directory"
+          if [ -z "$ARCHIVE_FILE" ]; then
+            echo "Error: Upstream release archive not found for ${{ matrix.goos }}_${{ matrix.goarch }}"
+            exit 1
           fi
+
+          echo "Found archive: $ARCHIVE_FILE. Extracting core binaries..."
+          if [[ "$ARCHIVE_FILE" == *.zip ]]; then
+            unzip -o "$ARCHIVE_FILE" -d bin_extract/
+          else
+            tar -xzf "$ARCHIVE_FILE" -C bin_extract/
+          fi
+
+          cp "bin_extract/agent${{ matrix.bin_ext }}" "bin/"
+          cp "bin_extract/signal${{ matrix.bin_ext }}" "bin/"
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            chmod +x "bin/agent${{ matrix.bin_ext }}" "bin/signal${{ matrix.bin_ext }}"
+          fi
+          ls -la bin/
 
       - name: Build Flutter Desktop Application
         run: |
@@ -148,6 +152,11 @@ jobs:
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
           BUNDLE_DIR="build/macos/Build/Products/Release"
+          APP_BIN_DIR="$BUNDLE_DIR/webrtc_gateway_gui.app/Contents/MacOS/bin"
+          mkdir -p "$APP_BIN_DIR"
+          if [ -f "bin/agent" ]; then cp bin/agent "$APP_BIN_DIR/"; chmod +x "$APP_BIN_DIR/agent"; fi
+          if [ -f "bin/signal" ]; then cp bin/signal "$APP_BIN_DIR/"; chmod +x "$APP_BIN_DIR/signal"; fi
+
           PKG_NAME="webrtc-gateway-gui_${TAG}_macos_arm64.zip"
           cd "$BUNDLE_DIR"
           zip -9 -r "../../../../../$PKG_NAME" .
