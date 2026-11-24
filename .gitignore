@@ -52,3 +52,4 @@ app.*.map.json
 !/bin/.gitkeep
 *.local.yaml
 *.local.json
+release_packages/

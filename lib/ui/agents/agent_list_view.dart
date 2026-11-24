@@ -7,6 +7,7 @@ import '../../core/i18n.dart';
 import '../../models/agent_profile.dart';
 import '../../models/runtime_state.dart';
 import '../../state/app_state.dart';
+import '../logs/live_log_dialog.dart';
 import '../share/share_dialog.dart';
 import 'agent_edit_dialog.dart';
 
@@ -57,7 +58,7 @@ class AgentListView extends StatelessWidget {
                     }
                   }
                 },
-                icon: const Icon(Icons.file_upload_outlined, size: 16),
+                icon: const Icon(Icons.file_open_rounded, size: 16),
                 label: const Text('导入 agent.yaml'),
               ),
               const SizedBox(width: 8),
@@ -275,7 +276,7 @@ class _AgentCard extends StatelessWidget {
             ),
             IconButton(
               tooltip: '导出源项目 agent.yaml',
-              icon: const Icon(Icons.file_download_outlined, color: Colors.teal),
+              icon: const Icon(Icons.save_alt_rounded, color: Colors.teal),
               onPressed: () async {
                 final yamlStr = profile.toYamlString();
                 final bytes = Uint8List.fromList(utf8.encode(yamlStr));
@@ -292,11 +293,14 @@ class _AgentCard extends StatelessWidget {
               },
             ),
             IconButton(
-              tooltip: '查看日志',
+              tooltip: '查看日志 (弹窗)',
               icon: const Icon(Icons.receipt_long_rounded, color: Colors.indigo),
               onPressed: () {
-                state.setSelectedLogProfileId(profile.id);
-                state.setTabIndex(4); // Switch to Logs tab
+                LiveLogDialog.show(
+                  context,
+                  title: '节点 ${profile.name} (${profile.nodeId}) 实时运行日志',
+                  profileId: profile.id,
+                );
               },
             ),
             IconButton(

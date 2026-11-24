@@ -89,6 +89,43 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  double get fontScale => appSettings.fontScale;
+  bool get autoDpi => appSettings.autoDpi;
+  double get customDpiScale => appSettings.customDpiScale;
+  String get githubMirror => appSettings.githubMirror;
+
+  Future<void> setFontScale(double scale) async {
+    appSettings.fontScale = scale.clamp(0.80, 1.40);
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
+  Future<void> setAutoDpi(bool auto) async {
+    appSettings.autoDpi = auto;
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
+  Future<void> setCustomDpiScale(double scale) async {
+    appSettings.customDpiScale = scale.clamp(0.75, 2.0);
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
+  Future<void> setGithubMirror(String mirror) async {
+    appSettings.githubMirror = mirror.trim();
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
+  Future<void> resetDisplayScaling() async {
+    appSettings.fontScale = 1.0;
+    appSettings.autoDpi = true;
+    appSettings.customDpiScale = 1.0;
+    configRepo.updateSettings(appSettings);
+    notifyListeners();
+  }
+
   Future<void> startAgent(AgentProfile profile) async {
     await supervisor.startAgent(profile);
     notifyListeners();

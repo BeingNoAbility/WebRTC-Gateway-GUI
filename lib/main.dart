@@ -88,6 +88,20 @@ class WebRTCGatewayApp extends StatelessWidget {
         ),
       ),
       themeMode: ThemeMode.system,
+      builder: (context, child) {
+        final state = context.watch<AppState>();
+        final mediaQuery = MediaQuery.of(context);
+        final pixelRatio = state.autoDpi
+            ? mediaQuery.devicePixelRatio
+            : (mediaQuery.devicePixelRatio * state.customDpiScale);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: TextScaler.linear(state.fontScale),
+            devicePixelRatio: pixelRatio,
+          ),
+          child: child ?? const SizedBox(),
+        );
+      },
       home: const MainWindow(),
     );
   }

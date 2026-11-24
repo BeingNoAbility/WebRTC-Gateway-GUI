@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../models/runtime_state.dart';
 import '../../state/app_state.dart';
+import '../logs/live_log_dialog.dart';
 
 class SignalServerView extends StatefulWidget {
   const SignalServerView({super.key});
@@ -31,6 +32,9 @@ class _SignalServerViewState extends State<SignalServerView> {
 
   bool _isProbingHealth = false;
   String? _healthResult;
+
+  final ScrollController _signalLogScrollCtrl = ScrollController();
+  bool _signalLogsAutoScroll = true;
 
   @override
   void initState() {
@@ -60,6 +64,7 @@ class _SignalServerViewState extends State<SignalServerView> {
     _portalDomainCtrl.dispose();
     _signalSecretCtrl.dispose();
     _trustedProxiesCtrl.dispose();
+    _signalLogScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -184,6 +189,14 @@ class _SignalServerViewState extends State<SignalServerView> {
 
     final webUrl = state.signalConfig.portalWebUrl;
 
+    if (_signalLogsAutoScroll && _signalLogScrollCtrl.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_signalLogsAutoScroll && _signalLogScrollCtrl.hasClients) {
+          _signalLogScrollCtrl.jumpTo(_signalLogScrollCtrl.position.maxScrollExtent);
+        }
+      });
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -199,13 +212,13 @@ class _SignalServerViewState extends State<SignalServerView> {
               const Spacer(),
               OutlinedButton.icon(
                 onPressed: () => _exportConfig(state),
-                icon: const Icon(Icons.download_rounded, size: 16),
+                icon: const Icon(Icons.save_alt_rounded, size: 16),
                 label: const Text('导出配置'),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () => _importConfig(state),
-                icon: const Icon(Icons.upload_file_rounded, size: 16),
+                icon: const Icon(Icons.file_open_rounded, size: 16),
                 label: const Text('导入配置'),
               ),
               const SizedBox(width: 12),
@@ -301,6 +314,19 @@ class _SignalServerViewState extends State<SignalServerView> {
                     ),
                   ),
                   if (isRunning) ...[
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        LiveLogDialog.show(
+                          context,
+                          title: '信令服务实时日志',
+                          profileId: '__signal__',
+                          isSignal: true,
+                        );
+                      },
+                      icon: const Icon(Icons.receipt_long_rounded),
+                      label: const Text('查看日志'),
+                    ),
+                    const SizedBox(width: 8),
                     OutlinedButton.icon(
                       onPressed: () {
                         // Open in external browser
@@ -564,6 +590,36 @@ class _SignalServerViewState extends State<SignalServerView> {
                       ),
                       const Spacer(),
                       IconButton(
+                        tooltip: _signalLogsAutoScroll ? '暂停自动滚动' : '恢复自动滚动',
+                        icon: Icon(
+                          _signalLogsAutoScroll ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
+                          color: _signalLogsAutoScroll ? null : Colors.orangeAccent,
+                        ),
+                        onPressed: () => setState(() => _signalLogsAutoScroll = !_signalLogsAutoScroll),
+                      ),
+                      IconButton(
+                        tooltip: '复制信令日志',
+                        icon: const Icon(Icons.copy_all_rounded),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: runtime.recentLogs.join('\n')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已复制信令日志到剪贴板'), duration: Duration(seconds: 1)),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        tooltip: '弹窗查看日志',
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        onPressed: () {
+                          LiveLogDialog.show(
+                            context,
+                            title: '信令服务实时日志',
+                            profileId: '__signal__',
+                            isSignal: true,
+                          );
+                        },
+                      ),
+                      IconButton(
                         tooltip: '清空信令日志',
                         icon: const Icon(Icons.delete_sweep_outlined),
                         onPressed: () {
@@ -588,20 +644,23 @@ class _SignalServerViewState extends State<SignalServerView> {
                               style: TextStyle(color: Colors.grey, fontFamily: 'monospace', fontSize: 12),
                             ),
                           )
-                        : ListView.builder(
-                            itemCount: runtime.recentLogs.length,
-                            itemBuilder: (ctx, idx) {
-                              final line = runtime.recentLogs[idx];
-                              return Text(
-                                line,
-                                style: const TextStyle(
-                                  fontFamily: 'Consolas, monospace',
-                                  fontSize: 12,
-                                  color: Color(0xFFE2E8F0),
-                                  height: 1.3,
-                                ),
-                              );
-                            },
+                        : SelectionArea(
+                            child: ListView.builder(
+                              controller: _signalLogScrollCtrl,
+                              itemCount: runtime.recentLogs.length,
+                              itemBuilder: (ctx, idx) {
+                                final line = runtime.recentLogs[idx];
+                                return Text(
+                                  line,
+                                  style: const TextStyle(
+                                    fontFamily: 'Consolas, monospace',
+                                    fontSize: 12,
+                                    color: Color(0xFFE2E8F0),
+                                    height: 1.3,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                   ),
                 ],

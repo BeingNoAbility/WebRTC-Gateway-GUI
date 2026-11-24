@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:webrtc_gateway_gui/models/agent_profile.dart';
+import 'package:webrtc_gateway_gui/models/app_settings.dart';
 import 'package:webrtc_gateway_gui/models/signal_profile.dart';
 import 'package:webrtc_gateway_gui/services/diagnostic_service.dart';
+import 'package:webrtc_gateway_gui/services/update_service.dart';
 
 void main() {
   group('AgentProfile Unit Tests', () {
@@ -136,6 +138,50 @@ void main() {
         expect(type.displayNameZh.isNotEmpty, isTrue);
         expect(type.displayNameEn.isNotEmpty, isTrue);
       }
+    });
+  });
+
+  group('AppSettings and Scaling Tests', () {
+    test('AppSettings JSON serialization supports fontScale, autoDpi, and mirror', () {
+      final settings = AppSettings(
+        fontScale: 1.15,
+        autoDpi: false,
+        customDpiScale: 1.25,
+        githubMirror: 'https://mirror.ghproxy.com/',
+      );
+
+      final json = settings.toJson();
+      expect(json['font_scale'], 1.15);
+      expect(json['auto_dpi'], false);
+      expect(json['custom_dpi_scale'], 1.25);
+      expect(json['github_mirror'], 'https://mirror.ghproxy.com/');
+
+      final parsed = AppSettings.fromJson(json);
+      expect(parsed.fontScale, 1.15);
+      expect(parsed.autoDpi, false);
+      expect(parsed.customDpiScale, 1.25);
+      expect(parsed.githubMirror, 'https://mirror.ghproxy.com/');
+    });
+  });
+
+  group('UpdateService Mirror Formatting Tests', () {
+    test('formatUrlWithMirror prepends proxy correctly or keeps direct', () {
+      const rawUrl = 'https://github.com/BeingNoAbility/WebRTC-Gateway/releases/download/v3.1.11/agent.exe';
+      
+      expect(
+        UpdateService.formatUrlWithMirror(rawUrl, 'https://ghproxy.net/'),
+        'https://ghproxy.net/https://github.com/BeingNoAbility/WebRTC-Gateway/releases/download/v3.1.11/agent.exe',
+      );
+
+      expect(
+        UpdateService.formatUrlWithMirror(rawUrl, '直接访问 (Direct)'),
+        rawUrl,
+      );
+
+      expect(
+        UpdateService.formatUrlWithMirror(rawUrl, ''),
+        rawUrl,
+      );
     });
   });
 }

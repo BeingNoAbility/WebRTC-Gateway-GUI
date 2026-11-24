@@ -1,11 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../core/i18n.dart';
 import '../../models/app_settings.dart';
+import '../../services/update_service.dart';
 import '../../state/app_state.dart';
 
 class SettingsView extends StatefulWidget {
@@ -16,67 +17,145 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
-  String? _detectedVersion;
-  String? _latestRelease;
-  bool _isCheckingUpdate = false;
+  String? _detectedAgentVersion;
+  String? _detectedSignalVersion;
+
   bool _isTogglingAutostart = false;
+
+  // Updates state
+  late TextEditingController _mirrorCtrl;
+  bool _isCheckingGui = false;
+  bool _isCheckingCore = false;
+  ReleaseInfo? _guiRelease;
+  ReleaseInfo? _coreRelease;
+
+  double? _coreDownloadProgress;
+  String? _coreDownloadStatus;
 
   @override
   void initState() {
     super.initState();
-    _inspectCurrentBinary();
+    final state = context.read<AppState>();
+    _mirrorCtrl = TextEditingController(text: state.githubMirror);
+    _inspectBinaries();
   }
 
-  void _inspectCurrentBinary() async {
+  @override
+  void dispose() {
+    _mirrorCtrl.dispose();
+    super.dispose();
+  }
+
+  void _inspectBinaries() async {
     final state = context.read<AppState>();
-    final path = await state.binaryManager.resolveAgentPath();
-    final info = await state.binaryManager.inspectBinary(path);
+    
+    // Agent
+    final agentPath = await state.binaryManager.resolveAgentPath();
+    final agentInfo = await state.binaryManager.inspectBinary(agentPath);
+
+    // Signal
+    final signalPath = await state.binaryManager.resolveSignalPath();
+    final signalInfo = await state.binaryManager.inspectBinary(signalPath);
 
     if (mounted) {
       setState(() {
-        _detectedVersion = info.version ?? info.error ?? '未检测到可用程序';
+        _detectedAgentVersion = agentInfo.version ?? agentInfo.error ?? '未检测到可用程序';
+        _detectedSignalVersion = signalInfo.version ?? signalInfo.error ?? '未检测到可用程序';
       });
     }
   }
 
-  void _chooseCustomBinary() async {
+  void _chooseCustomAgentBinary() async {
     final state = context.read<AppState>();
     final result = await FilePicker.pickFiles();
     if (result.isNotEmpty && result.first.path != null) {
       await state.binaryManager.setCustomAgentPath(result.first.path);
-      _inspectCurrentBinary();
+      _inspectBinaries();
       setState(() {});
     }
   }
 
-  void _resetCustomBinary() async {
+  void _resetCustomAgentBinary() async {
     final state = context.read<AppState>();
     await state.binaryManager.setCustomAgentPath(null);
-    _inspectCurrentBinary();
+    _inspectBinaries();
     setState(() {});
   }
 
-  void _checkGithubUpdate() async {
-    setState(() => _isCheckingUpdate = true);
-    try {
-      final url = Uri.parse('https://api.github.com/repos/BeingNoAbility/WebRTC-Gateway/releases/latest');
-      final resp = await http.get(url).timeout(const Duration(seconds: 4));
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        final tag = data['tag_name'] as String? ?? 'v3.1.11';
-        setState(() => _latestRelease = tag);
+  void _chooseCustomSignalBinary() async {
+    final state = context.read<AppState>();
+    final result = await FilePicker.pickFiles();
+    if (result.isNotEmpty && result.first.path != null) {
+      await state.binaryManager.setCustomSignalPath(result.first.path);
+      _inspectBinaries();
+      setState(() {});
+    }
+  }
+
+  void _resetCustomSignalBinary() async {
+    final state = context.read<AppState>();
+    await state.binaryManager.setCustomSignalPath(null);
+    _inspectBinaries();
+    setState(() {});
+  }
+
+  void _checkGuiUpdate() async {
+    setState(() => _isCheckingGui = true);
+    final mirror = _mirrorCtrl.text.trim();
+    final info = await UpdateService.fetchLatestRelease(UpdateService.repoGui, mirrorPrefix: mirror);
+    if (mounted) {
+      setState(() {
+        _isCheckingGui = false;
+        _guiRelease = info;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(info != null ? '已获取 GUI 最新版本: ${info.tagName}' : '检查 GUI 更新失败，请检查网络或更换代理地址'),
+        ),
+      );
+    }
+  }
+
+  void _checkCoreUpdate() async {
+    setState(() => _isCheckingCore = true);
+    final mirror = _mirrorCtrl.text.trim();
+    final info = await UpdateService.fetchLatestRelease(UpdateService.repoCore, mirrorPrefix: mirror);
+    if (mounted) {
+      setState(() {
+        _isCheckingCore = false;
+        _coreRelease = info;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(info != null ? '已获取 Go 核心最新版本: ${info.tagName}' : '检查 Go 核心更新失败，请检查网络或更换代理地址'),
+        ),
+      );
+    }
+  }
+
+  void _downloadCoreAsset(ReleaseAsset asset) async {
+    setState(() {
+      _coreDownloadProgress = 0.01;
+      _coreDownloadStatus = '准备下载 ${asset.name}...';
+    });
+
+    final mirror = _mirrorCtrl.text.trim();
+    final msg = await UpdateService.downloadAndInstallCoreAsset(
+      asset: asset,
+      mirrorPrefix: mirror,
+      onProgress: (p, status) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('已获取上游最新发布版本: $tag')),
-          );
+          setState(() {
+            _coreDownloadProgress = p;
+            _coreDownloadStatus = status;
+          });
         }
-      } else {
-        setState(() => _latestRelease = 'v3.1.11 (Latest)');
-      }
-    } catch (_) {
-      setState(() => _latestRelease = 'v3.1.11 (Latest)');
-    } finally {
-      if (mounted) setState(() => _isCheckingUpdate = false);
+      },
+    );
+
+    if (mounted) {
+      _inspectBinaries();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 4)));
     }
   }
 
@@ -100,8 +179,6 @@ class _SettingsViewState extends State<SettingsView> {
       );
     }
   }
-
-
 
   void _exportUpstreamAgentYaml() async {
     final state = context.read<AppState>();
@@ -180,7 +257,8 @@ class _SettingsViewState extends State<SettingsView> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final i18n = AppI18n();
-    final customPath = state.binaryManager.customAgentPath;
+    final customAgent = state.binaryManager.customAgentPath;
+    final customSignal = state.binaryManager.customSignalPath;
     final isPortable = state.configRepo.isPortable;
 
     return SingleChildScrollView(
@@ -294,7 +372,7 @@ class _SettingsViewState extends State<SettingsView> {
           ),
           const SizedBox(height: 20),
 
-          // 2. Binary Management Card
+          // 2. Display & Font Scaling Card
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
@@ -305,59 +383,272 @@ class _SettingsViewState extends State<SettingsView> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.terminal_rounded, color: Colors.blueAccent),
+                      const Icon(Icons.format_size_rounded, color: Colors.indigoAccent),
                       const SizedBox(width: 8),
-                      Text(
-                        i18n.t('settings_binary_title'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      const Text(
+                        '界面缩放与字体显示 (Display & Scaling)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const Spacer(),
-                      if (_detectedVersion != null)
-                        Chip(
-                          avatar: const Icon(Icons.verified_rounded, size: 16, color: Colors.green),
-                          label: Text(_detectedVersion!, style: const TextStyle(fontSize: 12)),
-                        ),
+                      TextButton.icon(
+                        onPressed: () => state.resetDisplayScaling(),
+                        icon: const Icon(Icons.restore_rounded, size: 16),
+                        label: const Text('恢复默认比例'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text('配置运行穿透任务使用的底层 Go 核心二进制文件路径：', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                  const SizedBox(height: 12),
+
+                  // Font Size Scaling
                   Row(
                     children: [
+                      const SizedBox(
+                        width: 160,
+                        child: Text('全局字体大小缩放:', style: TextStyle(fontWeight: FontWeight.w500)),
+                      ),
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.grey.withValues(alpha: 0.05),
-                          ),
-                          child: Text(
-                            customPath ?? '默认使用随软件自带分发的内置二进制程序 (bin/agent.exe)',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              color: customPath != null ? Colors.blueAccent : Colors.grey,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        child: Slider(
+                          value: state.fontScale,
+                          min: 0.85,
+                          max: 1.30,
+                          divisions: 9,
+                          label: '${(state.fontScale * 100).toInt()}%',
+                          onChanged: (val) => state.setFontScale(val),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      OutlinedButton.icon(
-                        onPressed: _chooseCustomBinary,
-                        icon: const Icon(Icons.folder_open_rounded, size: 16),
-                        label: Text(i18n.t('settings_binary_browse')),
+                      SizedBox(
+                        width: 60,
+                        child: Text(
+                          '${(state.fontScale * 100).toInt()}%',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                          textAlign: TextAlign.end,
+                        ),
                       ),
-                      if (customPath != null) ...[
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: '恢复使用内置核心',
-                          icon: const Icon(Icons.restore_rounded, color: Colors.orangeAccent),
-                          onPressed: _resetCustomBinary,
+                    ],
+                  ),
+                  const Divider(height: 16),
+
+                  // Auto DPI Follow System
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('自动跟随系统 DPI 缩放 (Auto-detect DPI)'),
+                    subtitle: const Text('开启后自动适配 Windows 系统显示缩放比率，在高分屏上保持清晰锐利'),
+                    trailing: Switch(
+                      value: state.autoDpi,
+                      activeThumbColor: Colors.indigoAccent,
+                      onChanged: (val) => state.setAutoDpi(val),
+                    ),
+                  ),
+
+                  // Custom DPI Scale (active when autoDpi is false)
+                  if (!state.autoDpi) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 160,
+                          child: Text('自定义 DPI 缩放比例:', style: TextStyle(fontWeight: FontWeight.w500)),
+                        ),
+                        Expanded(
+                          child: Slider(
+                            value: state.customDpiScale,
+                            min: 0.80,
+                            max: 1.50,
+                            divisions: 14,
+                            label: '${(state.customDpiScale * 100).toInt()}%',
+                            onChanged: (val) => state.setCustomDpiScale(val),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 60,
+                          child: Text(
+                            '${(state.customDpiScale * 100).toInt()}%',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigoAccent),
+                            textAlign: TextAlign.end,
+                          ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        const Text('快捷档位: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        ActionChip(
+                          label: const Text('100%'),
+                          onPressed: () => state.setCustomDpiScale(1.0),
+                        ),
+                        ActionChip(
+                          label: const Text('125%'),
+                          onPressed: () => state.setCustomDpiScale(1.25),
+                        ),
+                        ActionChip(
+                          label: const Text('150%'),
+                          onPressed: () => state.setCustomDpiScale(1.50),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 3. Binary Management Cards (Split into Agent & Signal)
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.terminal_rounded, color: Colors.blueAccent),
+                      SizedBox(width: 8),
+                      Text(
+                        '底层核心可执行程序设置 (Core Binaries)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('穿透节点核心与信令服务端核心已分别独立支持自定义路径及版本自省：', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  const SizedBox(height: 16),
+
+                  // A: Agent Binary
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.2)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.hub_outlined, color: Colors.blueAccent, size: 18),
+                            const SizedBox(width: 8),
+                            const Text('Agent 穿透节点核心 (agent.exe)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const Spacer(),
+                            if (_detectedAgentVersion != null)
+                              Chip(
+                                avatar: const Icon(Icons.verified_rounded, size: 14, color: Colors.green),
+                                label: Text(_detectedAgentVersion!, style: const TextStyle(fontSize: 11)),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.grey.withValues(alpha: 0.05),
+                                ),
+                                child: Text(
+                                  customAgent ?? '默认使用内置核心程序 (bin/agent.exe)',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 12,
+                                    color: customAgent != null ? Colors.blueAccent : Colors.grey,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: _chooseCustomAgentBinary,
+                              icon: const Icon(Icons.folder_open_rounded, size: 16),
+                              label: const Text('浏览选择'),
+                            ),
+                            if (customAgent != null) ...[
+                              const SizedBox(width: 6),
+                              IconButton(
+                                tooltip: '恢复内置 agent',
+                                icon: const Icon(Icons.restore_rounded, color: Colors.orangeAccent),
+                                onPressed: _resetCustomAgentBinary,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // B: Signal Binary
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.2)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.dns_outlined, color: Colors.purpleAccent, size: 18),
+                            const SizedBox(width: 8),
+                            const Text('Signal 信令服务核心 (signal.exe)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const Spacer(),
+                            if (_detectedSignalVersion != null)
+                              Chip(
+                                avatar: const Icon(Icons.verified_rounded, size: 14, color: Colors.green),
+                                label: Text(_detectedSignalVersion!, style: const TextStyle(fontSize: 11)),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.grey.withValues(alpha: 0.05),
+                                ),
+                                child: Text(
+                                  customSignal ?? '默认使用内置信令程序 (bin/signal.exe)',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 12,
+                                    color: customSignal != null ? Colors.purpleAccent : Colors.grey,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: _chooseCustomSignalBinary,
+                              icon: const Icon(Icons.folder_open_rounded, size: 16),
+                              label: const Text('浏览选择'),
+                            ),
+                            if (customSignal != null) ...[
+                              const SizedBox(width: 6),
+                              IconButton(
+                                tooltip: '恢复内置 signal',
+                                icon: const Icon(Icons.restore_rounded, color: Colors.orangeAccent),
+                                onPressed: _resetCustomSignalBinary,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -365,7 +656,7 @@ class _SettingsViewState extends State<SettingsView> {
           ),
           const SizedBox(height: 20),
 
-          // 3. Profiles & Signal Config Backup/Restore Card
+          // 4. Profiles & Signal Config Backup/Restore Card
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
@@ -396,22 +687,22 @@ class _SettingsViewState extends State<SettingsView> {
                     children: [
                       FilledButton.icon(
                         onPressed: _exportAllConfig,
-                        icon: const Icon(Icons.download_rounded, size: 16),
+                        icon: const Icon(Icons.save_alt_rounded, size: 16),
                         label: const Text('全量打包导出 (.json)'),
                       ),
                       FilledButton.tonalIcon(
                         onPressed: _exportUpstreamAgentYaml,
-                        icon: const Icon(Icons.hub_outlined, size: 16),
+                        icon: const Icon(Icons.save_alt_rounded, size: 16),
                         label: const Text('导出源项目 agent.yaml'),
                       ),
                       FilledButton.tonalIcon(
                         onPressed: _exportUpstreamSignalYaml,
-                        icon: const Icon(Icons.dns_outlined, size: 16),
+                        icon: const Icon(Icons.save_alt_rounded, size: 16),
                         label: const Text('导出源项目 server.yaml'),
                       ),
                       OutlinedButton.icon(
                         onPressed: _importAnyConfig,
-                        icon: const Icon(Icons.upload_file_rounded, size: 16),
+                        icon: const Icon(Icons.file_open_rounded, size: 16),
                         label: const Text('导入配置 (支持 .yaml / .yml / .json)'),
                       ),
                     ],
@@ -422,43 +713,186 @@ class _SettingsViewState extends State<SettingsView> {
           ),
           const SizedBox(height: 20),
 
-          // 4. Update & About Card
+          // 5. Updates & Mirror Accelerator Card (Dual updates: GUI and Core separate)
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20.0),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const Row(
                     children: [
+                      Icon(Icons.system_update_rounded, color: Colors.blueAccent),
+                      SizedBox(width: 8),
                       Text(
-                        'WebRTC Gateway 客户端 GUI',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '版本: v1.0.0 (构建于 2026-11) | 基于 Flutter 3.50.1 + Dart 3.10',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        '检查更新与在线升级 (GUI & Core Updates)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  if (_latestRelease != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12.0),
-                      child: Text(
-                        '最新可用: $_latestRelease',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  const SizedBox(height: 8),
+                  const Text('GUI 客户端更新与底层 Go 核心版本更新独立解耦，并支持配置 GitHub 公共代理节点加速下载：', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  const SizedBox(height: 14),
+
+                  // Mirror Proxy Input Bar
+                  Row(
+                    children: [
+                      const Text('更新下载加速代理: ', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: UpdateService.presetMirrors.contains(_mirrorCtrl.text) ? _mirrorCtrl.text : null,
+                        hint: const Text('选择公共代理预设'),
+                        underline: const SizedBox(),
+                        items: UpdateService.presetMirrors.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 13)))).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _mirrorCtrl.text = val);
+                            state.setGithubMirror(val);
+                          }
+                        },
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _mirrorCtrl,
+                          style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: '填入自定义 GitHub 代理节点前缀，如 https://ghproxy.net/',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onSubmitted: (val) => state.setGithubMirror(val),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24),
+
+                  // A: GUI Update Section
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  OutlinedButton.icon(
-                    onPressed: _isCheckingUpdate ? null : _checkGithubUpdate,
-                    icon: _isCheckingUpdate
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.sync_rounded, size: 16),
-                    label: Text(i18n.t('settings_update_check')),
+                    child: Row(
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('GUI 客户端版本 (WebRTC-Gateway-GUI)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            SizedBox(height: 4),
+                            Text('当前运行: v1.0.0 | 基于 Flutter 3.50 + Dart 3.10', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        ),
+                        const Spacer(),
+                        if (_guiRelease != null) ...[
+                          Text(
+                            '最新版本: ${_guiRelease!.tagName}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton.tonal(
+                            onPressed: () {
+                              final targetUrl = UpdateService.formatUrlWithMirror(_guiRelease!.htmlUrl, _mirrorCtrl.text);
+                              if (Platform.isWindows) {
+                                Process.run('cmd', ['/c', 'start', targetUrl]);
+                              }
+                            },
+                            child: const Text('前往发布页下载'),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        OutlinedButton.icon(
+                          onPressed: _isCheckingGui ? null : _checkGuiUpdate,
+                          icon: _isCheckingGui
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.sync_rounded, size: 16),
+                          label: const Text('检查 GUI 更新'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // B: Core Update Section
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.purpleAccent.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('底层 Go 核心版本 (WebRTC-Gateway Core)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                const SizedBox(height: 4),
+                                Text('当前检测到核心: ${_detectedAgentVersion ?? "v3.1.11"}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                              ],
+                            ),
+                            const Spacer(),
+                            if (_coreRelease != null) ...[
+                              Text(
+                                '上游最新: ${_coreRelease!.tagName}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            OutlinedButton.icon(
+                              onPressed: _isCheckingCore ? null : _checkCoreUpdate,
+                              icon: _isCheckingCore
+                                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.sync_rounded, size: 16),
+                              label: const Text('检查底层核心更新'),
+                            ),
+                          ],
+                        ),
+
+                        // Download progress if active
+                        if (_coreDownloadProgress != null) ...[
+                          const SizedBox(height: 12),
+                          LinearProgressIndicator(value: _coreDownloadProgress),
+                          const SizedBox(height: 4),
+                          Text(_coreDownloadStatus ?? '', style: const TextStyle(fontSize: 12, color: Colors.blueAccent)),
+                        ],
+
+                        // List Core Release Assets if available
+                        if (_coreRelease != null && _coreRelease!.assets.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Text('可供在线更新的核心安装包 (点击直接下载并更新):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: _coreRelease!.assets.map((asset) {
+                              final isWindows = asset.name.toLowerCase().contains('windows') || asset.name.endsWith('.exe');
+                              return ActionChip(
+                                avatar: Icon(
+                                  isWindows ? Icons.window_rounded : Icons.file_present_rounded,
+                                  size: 14,
+                                  color: isWindows ? Colors.blueAccent : Colors.grey,
+                                ),
+                                label: Text(
+                                  '${asset.name} (${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB)',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                onPressed: _coreDownloadProgress != null && _coreDownloadProgress! < 1.0
+                                    ? null
+                                    : () => _downloadCoreAsset(asset),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
