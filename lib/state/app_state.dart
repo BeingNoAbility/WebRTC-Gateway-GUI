@@ -202,7 +202,9 @@ class AppState extends ChangeNotifier {
     for (final profile in profiles) {
       if (profile.autoStart &&
           !isRunning(profile.id) &&
-          (profile.accessSecret.isNotEmpty || profile.allowPublic)) {
+          (profile.accessSecret.isNotEmpty ||
+              profile.signLink.trim().isNotEmpty ||
+              profile.allowPublic)) {
         await startAgent(profile);
       }
     }

@@ -31,7 +31,9 @@ class AgentListView extends StatelessWidget {
     AppState state,
     AgentProfile profile,
   ) async {
-    if (profile.accessSecret.isNotEmpty || profile.allowPublic) {
+    if (profile.accessSecret.isNotEmpty ||
+        profile.signLink.trim().isNotEmpty ||
+        profile.allowPublic) {
       await state.startAgent(profile);
       return;
     }
@@ -208,6 +210,7 @@ class AgentListView extends StatelessWidget {
                               (p) =>
                                   !state.isRunning(p.id) &&
                                   p.accessSecret.isEmpty &&
+                                  p.signLink.trim().isEmpty &&
                                   !p.allowPublic,
                             );
                             if (unconfirmed.isNotEmpty) {
@@ -358,7 +361,9 @@ class _AgentCard extends StatelessWidget {
       modeDesc = profile.filePath;
     }
 
-    final isPublic = profile.accessSecret.isEmpty;
+    final hasEphemeralLock =
+        profile.accessSecret.isEmpty && profile.signLink.trim().isNotEmpty;
+    final isPublic = profile.accessSecret.isEmpty && !hasEphemeralLock;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -445,13 +450,17 @@ class _AgentCard extends StatelessWidget {
                         child: Text(
                           isPublic
                               ? i18n.t('agent_public_badge')
-                              : i18n.t('agent_protected_badge'),
+                              : (hasEphemeralLock
+                                  ? i18n.pick('临时签名锁', 'Ephemeral Lock')
+                                  : i18n.t('agent_protected_badge')),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: isPublic
                                 ? Colors.amber.shade800
-                                : Colors.green,
+                                : (hasEphemeralLock
+                                    ? Colors.teal
+                                    : Colors.green),
                           ),
                         ),
                       ),

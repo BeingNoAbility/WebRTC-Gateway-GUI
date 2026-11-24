@@ -111,7 +111,7 @@ class ProcessSupervisor {
 
     if (profile.accessSecret.isNotEmpty) {
       args.addAll(['-access-secret', profile.accessSecret]);
-    } else {
+    } else if (profile.signLink.trim().isEmpty) {
       args.add('-allow-public');
     }
 

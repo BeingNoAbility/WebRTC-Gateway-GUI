@@ -487,10 +487,14 @@ class _SmoothTabStack extends StatefulWidget {
   State<_SmoothTabStack> createState() => _SmoothTabStackState();
 }
 
-class _SmoothTabStackState extends State<_SmoothTabStack> {
+class _SmoothTabStackState extends State<_SmoothTabStack>
+    with SingleTickerProviderStateMixin {
   static const int _tabCount = 6;
   final List<Widget?> _cachedPages = List<Widget?>.filled(_tabCount, null);
-  final List<bool> _animateOnMount = List<bool>.filled(_tabCount, false);
+
+  late final AnimationController _transitionCtrl;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
 
   Widget _createPage(int index) {
     switch (index) {
@@ -515,6 +519,20 @@ class _SmoothTabStackState extends State<_SmoothTabStack> {
   void initState() {
     super.initState();
     _cachedPages[widget.selectedIndex] = _createPage(widget.selectedIndex);
+    _transitionCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 140),
+      value: 1.0,
+    );
+    final curved = CurvedAnimation(
+      parent: _transitionCtrl,
+      curve: Curves.easeOutCubic,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.65, end: 1.0).animate(curved);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.014),
+      end: Offset.zero,
+    ).animate(curved);
   }
 
   @override
@@ -523,93 +541,46 @@ class _SmoothTabStackState extends State<_SmoothTabStack> {
     final idx = widget.selectedIndex;
     if (_cachedPages[idx] == null) {
       _cachedPages[idx] = _createPage(idx);
-      _animateOnMount[idx] = true;
     }
+    if (idx != oldWidget.selectedIndex) {
+      _transitionCtrl.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _transitionCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        for (var i = 0; i < _tabCount; i++)
-          if (_cachedPages[i] != null)
-            _TabPageSlot(
-              key: ValueKey<int>(i),
-              isActive: widget.selectedIndex == i,
-              animateOnMount: _animateOnMount[i],
-              child: _cachedPages[i]!,
-            ),
-      ],
-    );
-  }
-}
-
-class _TabPageSlot extends StatefulWidget {
-  final bool isActive;
-  final bool animateOnMount;
-  final Widget child;
-
-  const _TabPageSlot({
-    super.key,
-    required this.isActive,
-    required this.animateOnMount,
-    required this.child,
-  });
-
-  @override
-  State<_TabPageSlot> createState() => _TabPageSlotState();
-}
-
-class _TabPageSlotState extends State<_TabPageSlot> {
-  late bool _visible;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.animateOnMount && widget.isActive) {
-      _visible = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.isActive && !_visible) {
-          setState(() => _visible = true);
-        }
-      });
-    } else {
-      _visible = widget.isActive;
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _TabPageSlot oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive != oldWidget.isActive) {
-      _visible = widget.isActive;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: TickerMode(
-        enabled: widget.isActive,
-        child: IgnorePointer(
-          ignoring: !widget.isActive,
-          child: ExcludeSemantics(
-            excluding: !widget.isActive,
-            child: RepaintBoundary(
-              child: AnimatedSlide(
-                offset: _visible ? Offset.zero : const Offset(0, 0.012),
-                duration: const Duration(milliseconds: 160),
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  opacity: _visible ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 140),
-                  curve: Curves.easeOutCubic,
-                  child: widget.child,
+    // Only the active tab is kept onstage; inactive tabs stay Offstage with
+    // tickers and semantics excluded so views can never bleed/overlap while a
+    // single GPU-composited entrance animation glides on tab switch.
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            for (var i = 0; i < _tabCount; i++)
+              if (_cachedPages[i] != null)
+                Offstage(
+                  key: ValueKey<int>(i),
+                  offstage: widget.selectedIndex != i,
+                  child: TickerMode(
+                    enabled: widget.selectedIndex == i,
+                    child: ExcludeSemantics(
+                      excluding: widget.selectedIndex != i,
+                      child: RepaintBoundary(
+                        child: _cachedPages[i]!,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
+          ],
         ),
       ),
     );

@@ -26,11 +26,18 @@ class ShareDialog extends StatefulWidget {
 }
 
 class _ShareDialogState extends State<ShareDialog> {
+  final ScrollController _scrollCtrl = ScrollController();
   int _expireHours = 24;
   bool _useSignedLink = true;
   bool _includePasswordInCard = false;
   bool _copiedLink = false;
   bool _copiedCard = false;
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 
   String _computeActiveShareUrl(String? cliGeneratedLink) {
     if (widget.profile.accessSecret.isNotEmpty) {
@@ -75,8 +82,10 @@ class _ShareDialogState extends State<ShareDialog> {
           maxHeight: MediaQuery.sizeOf(context).height * 0.82,
         ),
         child: Scrollbar(
+          controller: _scrollCtrl,
           thumbVisibility: true,
           child: SingleChildScrollView(
+            controller: _scrollCtrl,
             padding: const EdgeInsets.only(right: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -168,11 +177,11 @@ class _ShareDialogState extends State<ShareDialog> {
                   ),
                 ],
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // QR Code Card (always white background so scanners read reliably in Dark Mode)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -185,16 +194,16 @@ class _ShareDialogState extends State<ShareDialog> {
                     ],
                   ),
                   child: SizedBox.square(
-                    dimension: 190.0,
+                    dimension: 156.0,
                     child: QrImageView(
                       data: url,
                       version: QrVersions.auto,
-                      size: 190.0,
+                      size: 156.0,
                       backgroundColor: Colors.white,
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
 
                 Text(
                   '${widget.profile.name} (${widget.profile.nodeId})',

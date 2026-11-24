@@ -42,6 +42,7 @@ class AgentEditDialog extends StatefulWidget {
 
 class _AgentEditDialogState extends State<AgentEditDialog> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollCtrl = ScrollController();
 
   late String _id;
   late TextEditingController _nameCtrl;
@@ -136,6 +137,7 @@ class _AgentEditDialogState extends State<AgentEditDialog> {
     _proxyCtrl.dispose();
     _sniCtrl.dispose();
     _customBinaryCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -175,7 +177,9 @@ class _AgentEditDialogState extends State<AgentEditDialog> {
     final i18n = AppI18n();
     final screenHeight = MediaQuery.sizeOf(context).height;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final isPublicNoPassword = _accessSecretCtrl.text.trim().isEmpty;
+    final hasEphemeralSignLink = _signLinkCtrl.text.trim().isNotEmpty;
+    final isPublicNoPassword =
+        _accessSecretCtrl.text.trim().isEmpty && !hasEphemeralSignLink;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -206,8 +210,10 @@ class _AgentEditDialogState extends State<AgentEditDialog> {
         child: Form(
           key: _formKey,
           child: Scrollbar(
+            controller: _scrollCtrl,
             thumbVisibility: true,
             child: SingleChildScrollView(
+              controller: _scrollCtrl,
               padding: const EdgeInsets.only(right: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -999,7 +1005,9 @@ class _AgentEditDialogState extends State<AgentEditDialog> {
           onPressed: () {
             if (!(_formKey.currentState?.validate() ?? false)) return;
 
-            if (_accessSecretCtrl.text.trim().isEmpty && !_allowPublic) {
+            if (_accessSecretCtrl.text.trim().isEmpty &&
+                _signLinkCtrl.text.trim().isEmpty &&
+                !_allowPublic) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
