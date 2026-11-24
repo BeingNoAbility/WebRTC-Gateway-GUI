@@ -45,12 +45,10 @@ class _LogViewerViewState extends State<LogViewerView> {
         logs.addAll(runtime.recentLogs.map((l) => '[${p.nodeId}] $l'));
       }
       final signal = state.supervisor.getSignalState();
-      if (signal != null) {
-        logs.addAll(signal.recentLogs.map((l) => '[SIGNAL] $l'));
-      }
+      logs.addAll(signal.recentLogs.map((l) => '[SIGNAL] $l'));
     } else if (selectedId == '__signal__') {
       final signal = state.supervisor.getSignalState();
-      if (signal != null) logs = signal.recentLogs;
+      logs = signal.recentLogs;
     } else {
       final runtime = state.getRuntimeState(selectedId);
       logs = runtime.recentLogs;
@@ -128,10 +126,11 @@ class _LogViewerViewState extends State<LogViewerView> {
                 tooltip: '清空显示',
                 icon: const Icon(Icons.delete_sweep_outlined),
                 onPressed: () {
-                  if (selectedId != null) {
-                    state.getRuntimeState(selectedId).clearLogs();
-                    setState(() {});
-                  }
+                  state.clearLogs(selectedId);
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('已清空日志输出'), duration: Duration(seconds: 1)),
+                  );
                 },
               ),
             ],

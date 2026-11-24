@@ -39,10 +39,16 @@ class _ShareDialogState extends State<ShareDialog> {
           Text(i18n.t('share_dialog_title')),
         ],
       ),
-      content: SizedBox(
-        width: 480,
-        child: SingleChildScrollView(
-          child: Column(
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 480,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+        ),
+        child: Scrollbar(
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(right: 8),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
@@ -140,6 +146,7 @@ class _ShareDialogState extends State<ShareDialog> {
           ),
         ),
       ),
+    ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),

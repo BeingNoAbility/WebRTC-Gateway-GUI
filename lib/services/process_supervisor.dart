@@ -18,7 +18,7 @@ class ProcessSupervisor {
 
   // Signal server process & state
   Process? _signalProcess;
-  AgentRuntimeState? _signalState;
+  final AgentRuntimeState _signalState = AgentRuntimeState(profileId: '__signal__');
 
   // Broadcast stream controller for state changes
   final _stateChangeController = StreamController<String>.broadcast();
@@ -31,27 +31,46 @@ class ProcessSupervisor {
   ProcessSupervisor(this._binaryManager);
 
   AgentRuntimeState getOrCreateState(String profileId) {
+    if (profileId == '__signal__') {
+      return _signalState;
+    }
     return _runtimeStates.putIfAbsent(
       profileId,
       () => AgentRuntimeState(profileId: profileId),
     );
   }
 
-  AgentRuntimeState? getSignalState() => _signalState;
+  AgentRuntimeState getSignalState() => _signalState;
 
   bool isRunning(String profileId) {
+    if (profileId == '__signal__') {
+      return isSignalRunning();
+    }
     final state = _runtimeStates[profileId];
     return state != null && state.status == ProcessStatus.running;
   }
 
   bool isSignalRunning() {
-    return _signalState != null && _signalState!.status == ProcessStatus.running;
+    return _signalState.status == ProcessStatus.running && _signalProcess != null;
+  }
+
+  /// Clears logs for all nodes or a specific node
+  void clearLogs([String? profileId]) {
+    if (profileId == null) {
+      _signalState.clearLogs();
+      for (final state in _runtimeStates.values) {
+        state.clearLogs();
+      }
+    } else if (profileId == '__signal__') {
+      _signalState.clearLogs();
+    } else {
+      _runtimeStates[profileId]?.clearLogs();
+    }
   }
 
   /// Finds an available TCP port for Prometheus metrics
   Future<int> _findAvailablePort([int startPort = 9091]) async {
     for (int port = startPort; port < startPort + 200; port++) {
-      // Check if already allocated in our internal map
       bool alreadyAllocated = _runtimeStates.values.any((s) => s.metricsPort == port);
       if (alreadyAllocated) continue;
 
@@ -59,9 +78,7 @@ class ProcessSupervisor {
         final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
         await server.close();
         return port;
-      } catch (_) {
-        // Port in use by external process, try next
-      }
+      } catch (_) {}
     }
     return startPort;
   }
@@ -91,11 +108,11 @@ class ProcessSupervisor {
       final metricsPort = await _findAvailablePort(9091);
       state.metricsPort = metricsPort;
 
-      // Construct CLI arguments
+      // Construct CLI arguments with exact official flag names
       final args = <String>[
         '-node-id', profile.nodeId,
         '-signal', profile.signalUrl,
-        '-metrics', ':$metricsPort',
+        '-metrics-addr', ':$metricsPort',
         '-max-trunks', profile.maxTrunks.toString(),
         '-max-streams', profile.maxStreams.toString(),
       ];
@@ -116,11 +133,22 @@ class ProcessSupervisor {
       if (profile.signalSecret.isNotEmpty) {
         args.addAll(['-signal-secret', profile.signalSecret]);
       }
+
+      // In WebRTC Gateway Agent v3.1+, empty password strictly requires -allow-public flag!
       if (profile.accessSecret.isNotEmpty) {
         args.addAll(['-access-secret', profile.accessSecret]);
+      } else {
+        args.add('-allow-public');
+      }
+
+      if (profile.allowedProxyDomains.isNotEmpty) {
+        args.addAll(['-allowed-proxy-domains', profile.allowedProxyDomains]);
       }
       if (profile.portalUrl.isNotEmpty) {
         args.addAll(['-portal-url', profile.portalUrl]);
+      }
+      if (profile.signLink.isNotEmpty) {
+        args.addAll(['-sign-link', profile.signLink]);
       }
       if (profile.insecure) {
         args.add('-insecure');
@@ -133,6 +161,9 @@ class ProcessSupervisor {
       }
       if (profile.sni.isNotEmpty) {
         args.addAll(['-sni', profile.sni]);
+      }
+      if (profile.stunServers.isNotEmpty) {
+        args.addAll(['-stun-servers', profile.stunServers.join(',')]);
       }
       if (profile.turnUrl.isNotEmpty) {
         args.addAll(['-turn-url', profile.turnUrl]);
@@ -171,7 +202,7 @@ class ProcessSupervisor {
         }
         if (code != 0 && state.status != ProcessStatus.stopped) {
           state.status = ProcessStatus.error;
-          state.lastError = '进程异常退出，退出码: $code';
+          state.lastError = '进程退出，退出码: $code';
         }
         state.pid = null;
         _stateChangeController.add(profile.id);
@@ -203,13 +234,11 @@ class ProcessSupervisor {
     state.status = ProcessStatus.stopping;
     _stateChangeController.add(profileId);
 
-    // Send SIGINT / kill
     bool killed = process.kill(ProcessSignal.sigint);
     if (!killed) {
       killed = process.kill();
     }
 
-    // Force kill if didn't terminate in 2 seconds
     Future.delayed(const Duration(seconds: 2), () {
       if (_runningProcesses.containsKey(profileId)) {
         process.kill(ProcessSignal.sigkill);
@@ -223,42 +252,49 @@ class ProcessSupervisor {
   Future<bool> startSignalServer(SignalServerConfig config) async {
     if (isSignalRunning()) return false;
 
-    _signalState ??= AgentRuntimeState(profileId: '__signal__');
-    _signalState!.status = ProcessStatus.starting;
-    _signalState!.lastError = null;
+    _signalState.status = ProcessStatus.starting;
+    _signalState.lastError = null;
     _stateChangeController.add('__signal__');
 
     try {
       final binPath = await _binaryManager.resolveSignalPath();
       final binInfo = await _binaryManager.inspectBinary(binPath);
       if (!binInfo.exists) {
-        _signalState!.status = ProcessStatus.error;
-        _signalState!.lastError = '底层 Signal 核心未找到: $binPath';
+        _signalState.status = ProcessStatus.error;
+        _signalState.lastError = '底层 Signal 核心未找到: $binPath';
         _stateChangeController.add('__signal__');
         return false;
       }
 
       final args = <String>[
         '-addr', config.addr,
-        '-metrics', ':${config.metricsPort}',
       ];
 
+      if (config.metricsAddr.isNotEmpty) {
+        args.addAll(['-metrics-addr', config.metricsAddr]);
+      }
+      if (config.staticDir.isNotEmpty) {
+        args.addAll(['-static', config.staticDir]);
+      }
       if (config.tlsAuto) {
         args.add('-tls-auto');
       } else {
         if (config.tlsCert.isNotEmpty) args.addAll(['-tls-cert', config.tlsCert]);
         if (config.tlsKey.isNotEmpty) args.addAll(['-tls-key', config.tlsKey]);
       }
-
-      if (config.signalSecret.isNotEmpty) {
-        args.addAll(['-signal-secret', config.signalSecret]);
+      if (config.allowedOrigins.isNotEmpty) {
+        args.addAll(['-allowed-origins', config.allowedOrigins]);
       }
       if (config.portalDomain.isNotEmpty) {
         args.addAll(['-portal-domain', config.portalDomain]);
       }
-      if (config.allowAllOrigins) {
-        args.add('-allow-all-origins');
+      if (config.signalSecret.isNotEmpty) {
+        args.addAll(['-signal-secret', config.signalSecret]);
       }
+      if (config.trustedProxies.isNotEmpty) {
+        args.addAll(['-trusted-proxies', config.trustedProxies]);
+      }
+      args.addAll(['-max-ip-conns', config.maxIpConns.toString()]);
 
       final process = await Process.start(
         binPath,
@@ -267,36 +303,36 @@ class ProcessSupervisor {
       );
 
       _signalProcess = process;
-      _signalState!.pid = process.pid;
-      _signalState!.startTime = DateTime.now();
-      _signalState!.status = ProcessStatus.running;
+      _signalState.pid = process.pid;
+      _signalState.startTime = DateTime.now();
+      _signalState.status = ProcessStatus.running;
       _stateChangeController.add('__signal__');
 
       process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-        _signalState!.addLog(line);
+        _signalState.addLog(line);
         _logController.add(MapEntry('__signal__', line));
       });
 
       process.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-        _signalState!.addLog(line);
+        _signalState.addLog(line);
         _logController.add(MapEntry('__signal__', line));
       });
 
       process.exitCode.then((code) {
         _signalProcess = null;
-        _signalState!.status = ProcessStatus.stopped;
-        _signalState!.pid = null;
+        _signalState.status = ProcessStatus.stopped;
+        _signalState.pid = null;
         if (code != 0) {
-          _signalState!.status = ProcessStatus.error;
-          _signalState!.lastError = 'Signal 服务异常退出: $code';
+          _signalState.status = ProcessStatus.error;
+          _signalState.lastError = 'Signal 服务异常退出: $code';
         }
         _stateChangeController.add('__signal__');
       });
 
       return true;
     } catch (e) {
-      _signalState!.status = ProcessStatus.error;
-      _signalState!.lastError = 'Signal 启动失败: $e';
+      _signalState.status = ProcessStatus.error;
+      _signalState.lastError = 'Signal 启动失败: $e';
       _stateChangeController.add('__signal__');
       return false;
     }
@@ -305,17 +341,32 @@ class ProcessSupervisor {
   /// Stops local Signal server
   Future<bool> stopSignalServer() async {
     if (_signalProcess != null) {
-      _signalState?.status = ProcessStatus.stopping;
+      _signalState.status = ProcessStatus.stopping;
       _stateChangeController.add('__signal__');
 
       _signalProcess?.kill(ProcessSignal.sigint);
       _signalProcess?.kill();
       _signalProcess = null;
     }
-    _signalState?.status = ProcessStatus.stopped;
-    _signalState?.pid = null;
+    _signalState.status = ProcessStatus.stopped;
+    _signalState.pid = null;
     _stateChangeController.add('__signal__');
     return true;
+  }
+
+  /// Executes health check probe for Signal server
+  Future<bool> probeSignalHealth([String? customUrl]) async {
+    try {
+      final binPath = await _binaryManager.resolveSignalPath();
+      final args = ['-health'];
+      if (customUrl != null && customUrl.isNotEmpty) {
+        args.addAll(['-health-url', customUrl]);
+      }
+      final result = await Process.run(binPath, args);
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Stops all running Agent processes and Signal server

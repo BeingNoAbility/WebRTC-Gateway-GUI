@@ -270,6 +270,12 @@ class _DiagnosticsViewState extends State<DiagnosticsView> {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const Spacer(),
+                      FilledButton.tonalIcon(
+                        icon: const Icon(Icons.launch_rounded, size: 16),
+                        label: const Text('信令独立工作台 (Signal Station)'),
+                        onPressed: () => state.setTabIndex(2),
+                      ),
+                      const SizedBox(width: 12),
                       Switch(
                         value: state.isSignalRunning(),
                         activeThumbColor: Colors.purpleAccent,

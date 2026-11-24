@@ -255,7 +255,7 @@ class _AgentCard extends StatelessWidget {
               icon: const Icon(Icons.receipt_long_rounded, color: Colors.indigo),
               onPressed: () {
                 state.setSelectedLogProfileId(profile.id);
-                state.setTabIndex(3); // Switch to Logs tab
+                state.setTabIndex(4); // Switch to Logs tab
               },
             ),
             IconButton(

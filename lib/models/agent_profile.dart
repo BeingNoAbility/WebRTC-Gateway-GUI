@@ -15,7 +15,10 @@ class AgentProfile {
   String signalUrl;
   String signalSecret;
   String accessSecret;
+  bool allowPublic;
+  String allowedProxyDomains;
   String portalUrl;
+  String signLink;
   int maxTrunks;
   int maxStreams;
   List<String> stunServers;
@@ -40,7 +43,10 @@ class AgentProfile {
     this.signalUrl = 'ws://127.0.0.1:8888/ws',
     this.signalSecret = '',
     this.accessSecret = '',
+    this.allowPublic = true,
+    this.allowedProxyDomains = '',
     this.portalUrl = '',
+    this.signLink = '',
     this.maxTrunks = 4,
     this.maxStreams = 512,
     List<String>? stunServers,
@@ -69,7 +75,10 @@ class AgentProfile {
     String? signalUrl,
     String? signalSecret,
     String? accessSecret,
+    bool? allowPublic,
+    String? allowedProxyDomains,
     String? portalUrl,
+    String? signLink,
     int? maxTrunks,
     int? maxStreams,
     List<String>? stunServers,
@@ -94,7 +103,10 @@ class AgentProfile {
       signalUrl: signalUrl ?? this.signalUrl,
       signalSecret: signalSecret ?? this.signalSecret,
       accessSecret: accessSecret ?? this.accessSecret,
+      allowPublic: allowPublic ?? this.allowPublic,
+      allowedProxyDomains: allowedProxyDomains ?? this.allowedProxyDomains,
       portalUrl: portalUrl ?? this.portalUrl,
+      signLink: signLink ?? this.signLink,
       maxTrunks: maxTrunks ?? this.maxTrunks,
       maxStreams: maxStreams ?? this.maxStreams,
       stunServers: stunServers ?? List.from(this.stunServers),
@@ -121,7 +133,10 @@ class AgentProfile {
         'signal': signalUrl,
         'signal_secret': signalSecret,
         'access_secret': accessSecret,
+        'allow_public': allowPublic,
+        'allowed_proxy_domains': allowedProxyDomains,
         'portal_url': portalUrl,
+        'sign_link': signLink,
         'max_trunks': maxTrunks,
         'max_streams': maxStreams,
         'stun_servers': stunServers,
@@ -151,7 +166,10 @@ class AgentProfile {
       signalUrl: json['signal'] as String? ?? 'ws://127.0.0.1:8888/ws',
       signalSecret: json['signal_secret'] as String? ?? '',
       accessSecret: json['access_secret'] as String? ?? '',
+      allowPublic: json['allow_public'] as bool? ?? true,
+      allowedProxyDomains: json['allowed_proxy_domains'] as String? ?? '',
       portalUrl: json['portal_url'] as String? ?? '',
+      signLink: json['sign_link'] as String? ?? '',
       maxTrunks: (json['max_trunks'] as num?)?.toInt() ?? 4,
       maxStreams: (json['max_streams'] as num?)?.toInt() ?? 512,
       stunServers: (json['stun_servers'] as List<dynamic>?)
@@ -181,6 +199,8 @@ class AgentProfile {
     }
     if (accessSecret.isNotEmpty) {
       sb.writeln('access_secret: "$accessSecret"');
+    } else {
+      sb.writeln('allow_public: true');
     }
     
     switch (mode) {
@@ -195,6 +215,9 @@ class AgentProfile {
         break;
     }
 
+    if (allowedProxyDomains.isNotEmpty) {
+      sb.writeln('allowed_proxy_domains: "$allowedProxyDomains"');
+    }
     if (proxy.isNotEmpty) sb.writeln('proxy: "$proxy"');
     if (sni.isNotEmpty) sb.writeln('sni: "$sni"');
     if (insecure) sb.writeln('insecure: true');
@@ -230,7 +253,6 @@ class AgentProfile {
       final base = portalUrl.endsWith('/') ? portalUrl.substring(0, portalUrl.length - 1) : portalUrl;
       return '$base/#$nodeId';
     }
-    // Infer from signal URL
     try {
       final uri = Uri.parse(signalUrl);
       final scheme = uri.scheme == 'wss' ? 'https' : 'http';

@@ -48,8 +48,7 @@ app.*.map.json
 .widget_preview/
 
 # Local binaries & configs
-/bin/agent*
-/bin/signal*
-/bin/*.exe
+/bin/*
+!/bin/.gitkeep
 *.local.yaml
 *.local.json

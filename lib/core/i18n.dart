@@ -15,7 +15,8 @@ class AppI18n {
     'zh': {
       'app_title': 'WebRTC Gateway',
       'nav_dashboard': '运行看板',
-      'nav_agents': '节点管理',
+      'nav_agents': '穿透节点',
+      'nav_signal': '信令服务',
       'nav_diagnostics': '网络诊断',
       'nav_logs': '实时日志',
       'nav_settings': '全局设置',
@@ -71,6 +72,7 @@ class AppI18n {
       'app_title': 'WebRTC Gateway',
       'nav_dashboard': 'Dashboard',
       'nav_agents': 'Agents',
+      'nav_signal': 'Signal Server',
       'nav_diagnostics': 'Diagnostics',
       'nav_logs': 'Logs',
       'nav_settings': 'Settings',

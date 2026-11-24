@@ -122,7 +122,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> probeSignalHealth() async {
+    return await supervisor.probeSignalHealth();
+  }
+
   bool isSignalRunning() => supervisor.isSignalRunning();
+
+  AgentRuntimeState get signalState => supervisor.getSignalState();
+
+  void clearLogs([String? profileId]) {
+    supervisor.clearLogs(profileId);
+    notifyListeners();
+  }
 
   void toggleLocale() {
     final current = AppI18n().currentLocale;

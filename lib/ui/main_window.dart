@@ -8,6 +8,7 @@ import 'dashboard/dashboard_view.dart';
 import 'diagnostics/diagnostics_view.dart';
 import 'logs/log_viewer_view.dart';
 import 'settings/settings_view.dart';
+import 'signal/signal_server_view.dart';
 
 class MainWindow extends StatelessWidget {
   const MainWindow({super.key});
@@ -37,6 +38,19 @@ class MainWindow extends StatelessWidget {
           child: const Icon(Icons.hub_rounded, color: Colors.blueAccent),
         ),
         label: Text(i18n.t('nav_agents')),
+      ),
+      NavigationRailDestination(
+        icon: Badge(
+          isLabelVisible: state.isSignalRunning(),
+          backgroundColor: Colors.purpleAccent,
+          child: const Icon(Icons.dns_outlined),
+        ),
+        selectedIcon: Badge(
+          isLabelVisible: state.isSignalRunning(),
+          backgroundColor: Colors.purpleAccent,
+          child: const Icon(Icons.dns_rounded, color: Colors.purpleAccent),
+        ),
+        label: Text(i18n.t('nav_signal')),
       ),
       NavigationRailDestination(
         icon: const Icon(Icons.troubleshoot_outlined),
@@ -124,6 +138,7 @@ class MainWindow extends StatelessWidget {
               children: const [
                 DashboardView(),
                 AgentListView(),
+                SignalServerView(),
                 DiagnosticsView(),
                 LogViewerView(),
                 SettingsView(),
